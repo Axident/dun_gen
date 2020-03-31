@@ -3,6 +3,7 @@ from PySide.QtGui import *
 from customLoader import loadUi
 import os
 import time
+import math
 import sys
 import random
 from PIL import Image, ImageDraw
@@ -44,10 +45,51 @@ class MapBuilderWorker(QThread):
                 row.append(cell)
             self.data.append(row)
             
+    def max_box(self, direction, current_location, color):
+        largest_desired_room = 12
+        row, column = current_location
+        max_space = 1
+        print 'checking area %s of %s' % (direction, current_location)
+        while max_space <= largest_desired_room:
+            for r in range(0, max_space):
+                for c in range(0, max_space):
+                    if [r,c] != [0,0]:
+                        if direction == "northwest":
+                            r_test = row - r
+                            c_test = column - c
+                        elif direction == "northeast":
+                            r_test = row - r
+                            c_test = column + c
+                        elif direction == "southwest":
+                            r_test = row + r
+                            c_test = column - c
+                        elif direction == "southeast":
+                            r_test = row + r
+                            c_test = column + c
+                        if r_test<0 or r_test>=99 or c_test<0 or c_test>=99:
+                            print "box test out of bounds [%s,%s]" % (r_test, c_test)
+                            return max_space - 1
+                        nw = self.data[r_test][c_test]
+                        if nw.space_type is not None:
+                            if nw.color != color:
+                                return max_space -1
+            max_space += 1
+        return largest_desired_room
+            
     def run(self):
         self.generate()
         self.add_random_item(98, 50, 'north', space_type='hall')
         self.finished.emit(self.source_img)
+        
+    def color_cell(self, row, column, color, space_type, outline=None):
+        nw = self.data[row][column]
+        nw.space_type = space_type
+        nw.color = color
+        irow = row*10
+        icol = column*10
+        self.draw.rectangle((icol, irow, icol+10, irow+10), fill=color, outline=outline)
+        self.status.emit(self.source_img)
+        time.sleep(self.delay)
         
     def add_random_item(self, row, column, direction, space_type=None, outline=None):
         if row<0 or row>=99 or column<0 or column>=99:
@@ -55,7 +97,6 @@ class MapBuilderWorker(QThread):
         cur_item = self.data[row][column]
         if cur_item.space_type:
             return
-        print 'headed %s (%s,%s)' % (direction, row, column)
         if space_type:
             this_type = space_type
         else:
@@ -64,50 +105,33 @@ class MapBuilderWorker(QThread):
                 this_type = 'hall'
             else:
                 this_type = 'room'
+        print 'adding %s %s from (%s,%s)' % (this_type, direction, row, column)
         next_row = row
         next_col = column
         red = random.randint(20,256)
         blue = random.randint(20,256)
         green = random.randint(20,256)
+        color = (red,green,blue)
         #self.data[row][column] =  cur_item
         if this_type == 'room':
             cur_item.space_type = this_type
-            cur_item.color = (red,green,blue)
-            irow = row*10
-            icol = column*10
-            self.draw.rectangle((icol, irow, icol+10, irow+10), fill=(red,green,blue), outline='red')
-            self.status.emit(self.source_img)
-            time.sleep(self.delay)
-            max_horiz = 0
-            max_vert = 0
-            #get max room size
-            room_items = [cur_item.location]
             roll = random.randint(1,3)
             if direction == 'north':
                 if roll in [1,2]:
                     #handle northwest
-                    distance = random.randint(2,10)
-                    collision = False
-                    for r in range(row, row-distance, -1):
-                        if collision:
-                            break
-                        for c in range(column, column-distance, -1):
-                            if r<0 or r>=99 or c<0 or c>=99:
-                                collision = True
-                                break
-                            nw = self.data[r][c]
-                            if nw.location not in room_items:
-                                if nw.space_type is not None:
-                                    collision = True
-                                    break
-                                nw.space_type = this_type
-                                nw.color = (red,green,blue)
-                                irow = r*10
-                                icol = c*10
-                                self.draw.rectangle((icol, irow, icol+10, irow+10), fill=(red,green,blue), outline=None)
-                                self.status.emit(self.source_img)
-                                time.sleep(self.delay)
-                    if not collision and distance > 4:
+                    max_dist = self.max_box('northwest',cur_item.location, color)
+                    print 'max wall length: %s' % max_dist
+                    if max_dist == 2:
+                        distance = 2
+                    elif max_dist > 2:
+                        distance = max(random.randint(2,max_dist),random.randint(2,max_dist))
+                    else:
+                        distance = 0
+                    if max_dist >= 2:
+                        for r in range(row, row-distance, -1):
+                            for c in range(column, column-distance, -1):
+                                self.color_cell(r, c, color, this_type)
+                    if distance < max_dist and distance > 4:
                         wall = random.randint(1,6)
                         if wall in [1,2]:
                             #west wall
@@ -117,31 +141,21 @@ class MapBuilderWorker(QThread):
                             #north wall
                             where = random.randint(column-distance+2, column-2)
                             self.add_random_item(row-distance, column, 'north', space_type='hall', outline='white')
-                        
                 if roll in [1,3]:
                     #handle northeast
-                    distance = random.randint(2,8)
-                    collision = False
-                    for r in range(row, row-distance, -1):
-                        if collision:
-                            break
-                        for c in range(column, column+distance):
-                            if r<0 or r>=99 or c<0 or c>=99:
-                                collision = True
-                                break
-                            nw = self.data[r][c]
-                            if nw.location not in room_items:
-                                if nw.space_type is not None:
-                                    collision = True
-                                    break
-                                nw.space_type = this_type
-                                nw.color = (red,green,blue)
-                                irow = r*10
-                                icol = c*10
-                                self.draw.rectangle((icol, irow, icol+10, irow+10), fill=(red,green,blue), outline=None)
-                                self.status.emit(self.source_img)
-                                time.sleep(self.delay)
-                    if not collision and distance > 4:
+                    max_dist = self.max_box('northeast',cur_item.location, color)
+                    print 'max wall length: %s' % max_dist
+                    if max_dist == 2:
+                        distance = 2
+                    elif max_dist > 2:
+                        distance = max(random.randint(2,max_dist),random.randint(2,max_dist))
+                    else:
+                        distance = 0
+                    if max_dist >= 2:
+                        for r in range(row, row-distance, -1):
+                            for c in range(column, column+distance):
+                                self.color_cell(r, c, color, this_type)
+                    if distance < max_dist and distance > 4:
                         wall = random.randint(1,6)
                         if wall in [1,2]:
                             #east wall
@@ -154,28 +168,19 @@ class MapBuilderWorker(QThread):
             if direction == 'south':
                 if roll in [1,2]:
                     #handle southwest
-                    distance = random.randint(2,8)
-                    collision = False
-                    for r in range(row, row+distance):
-                        if collision:
-                            break
-                        for c in range(column, column-distance, -1):
-                            if r<0 or r>=99 or c<0 or c>=99:
-                                collision = True
-                                break
-                            nw = self.data[r][c]
-                            if nw.location not in room_items:
-                                if nw.space_type is not None:
-                                    collision = True
-                                    break
-                                nw.space_type = this_type
-                                nw.color = (red,green,blue)
-                                irow = r*10
-                                icol = c*10
-                                self.draw.rectangle((icol, irow, icol+10, irow+10), fill=(red,green,blue), outline=None)
-                                self.status.emit(self.source_img)
-                                time.sleep(self.delay)
-                    if not collision:
+                    max_dist = self.max_box('southwest',cur_item.location, color)
+                    print 'max wall length: %s' % max_dist
+                    if max_dist == 2:
+                        distance = 2
+                    elif max_dist > 2:
+                        distance = max(random.randint(2,max_dist),random.randint(2,max_dist))
+                    else:
+                        distance = 0
+                    if max_dist >= 2:
+                        for r in range(row, row+distance):
+                            for c in range(column, column-distance, -1):
+                                self.color_cell(r, c, color, this_type)
+                    if distance < max_dist and distance > 4:
                         wall = random.randint(1,6)
                         if wall in [1,2]:
                             self.add_random_item(row, column-distance, 'west', space_type='hall')
@@ -183,28 +188,19 @@ class MapBuilderWorker(QThread):
                             self.add_random_item(row+distance, column, 'south', space_type='hall')
                 if roll in [1,3]:
                     #handle southeast
-                    distance = random.randint(2,8)
-                    collision = False
-                    for r in range(row, row+distance):
-                        if collision:
-                            break
-                        for c in range(column, column+distance):
-                            if r<0 or r>=99 or c<0 or c>=99:
-                                collision = True
-                                break
-                            nw = self.data[r][c]
-                            if nw.location not in room_items:
-                                if nw.space_type is not None:
-                                    collision = True
-                                    break
-                                nw.space_type = this_type
-                                nw.color = (red,green,blue)
-                                irow = r*10
-                                icol = c*10
-                                self.draw.rectangle((icol, irow, icol+10, irow+10), fill=(red,green,blue), outline=None)
-                                self.status.emit(self.source_img)
-                                time.sleep(self.delay)
-                    if not collision:
+                    max_dist = self.max_box('southeast',cur_item.location, color)
+                    print 'max wall length: %s' % max_dist
+                    if max_dist == 2:
+                        distance = 2
+                    elif max_dist > 2:
+                        distance = max(random.randint(2,max_dist),random.randint(2,max_dist))
+                    else:
+                        distance = 0
+                    if max_dist >= 2:
+                        for r in range(row, row+distance):
+                            for c in range(column, column+distance):
+                                self.color_cell(r, c, color, this_type)
+                    if distance < max_dist and distance > 4:
                         wall = random.randint(1,6)
                         if wall in [1,2]:
                             self.add_random_item(row, column+distance, 'east', space_type='hall')
@@ -213,28 +209,19 @@ class MapBuilderWorker(QThread):
             if direction == 'east':
                 if roll in [1,2]:
                     #handle northeast
-                    distance = random.randint(2,8)
-                    collision = False
-                    for c in range(column, column+distance):
-                        if collision:
-                            break
-                        for r in range(row, row-distance, -1):
-                            if r<0 or r>=99 or c<0 or c>=99:
-                                collision = True
-                                break
-                            nw = self.data[r][c]
-                            if nw.location not in room_items:
-                                if nw.space_type is not None:
-                                    collision = True
-                                    break
-                                nw.space_type = this_type
-                                nw.color = (red,green,blue)
-                                irow = r*10
-                                icol = c*10
-                                self.draw.rectangle((icol, irow, icol+10, irow+10), fill=(red,green,blue), outline=None)
-                                self.status.emit(self.source_img)
-                                time.sleep(self.delay)
-                    if not collision:
+                    max_dist = self.max_box('northeast',cur_item.location, color)
+                    print 'max wall length: %s' % max_dist
+                    if max_dist == 2:
+                        distance = 2
+                    elif max_dist > 2:
+                        distance = max(random.randint(2,max_dist),random.randint(2,max_dist))
+                    else:
+                        distance = 0
+                    if max_dist >= 2:
+                        for c in range(column, column+distance):
+                            for r in range(row, row-distance, -1):
+                                self.color_cell(r, c, color, this_type)
+                    if distance < max_dist and distance > 4:
                         wall = random.randint(1,6)
                         if wall in [1,2]:
                             self.add_random_item(row, column+distance, 'east', space_type='hall')
@@ -242,28 +229,19 @@ class MapBuilderWorker(QThread):
                             self.add_random_item(row-distance, column, 'north', space_type='hall')
                 if roll in [1,3]:
                     #handle southeast
-                    distance = random.randint(2,8)
-                    collision = False
-                    for c in range(column, column+distance):
-                        if collision:
-                            break
-                        for r in range(row, row+distance):
-                            if r<0 or r>=99 or c<0 or c>=99:
-                                collision = True
-                                break
-                            nw = self.data[r][c]
-                            if nw.location not in room_items:
-                                if nw.space_type is not None:
-                                    collision = True
-                                    break
-                                nw.space_type = this_type
-                                nw.color = (red,green,blue)
-                                irow = r*10
-                                icol = c*10
-                                self.draw.rectangle((icol, irow, icol+10, irow+10), fill=(red,green,blue), outline=None)
-                                self.status.emit(self.source_img)
-                                time.sleep(self.delay)
-                    if not collision:
+                    max_dist = self.max_box('southeast',cur_item.location, color)
+                    print 'max wall length: %s' % max_dist
+                    if max_dist == 2:
+                        distance = 2
+                    elif max_dist > 2:
+                        distance = max(random.randint(2,max_dist),random.randint(2,max_dist))
+                    else:
+                        distance = 0
+                    if max_dist >= 2:
+                        for c in range(column, column+distance):
+                            for r in range(row, row+distance):
+                                self.color_cell(r, c, color, this_type)
+                    if distance < max_dist and distance > 4:
                         wall = random.randint(1,6)
                         if wall in [1,2]:
                             self.add_random_item(row, column+distance, 'east', space_type='hall')
@@ -272,28 +250,19 @@ class MapBuilderWorker(QThread):
             if direction == 'west':
                 if roll in [1,2]:
                     #handle northwest
-                    distance = random.randint(2,8)
-                    collision = False
-                    for c in range(column, column-distance,-1):
-                        if collision:
-                            break
-                        for r in range(row, row-distance, -1):
-                            if r<0 or r>=99 or c<0 or c>=99:
-                                collision = True
-                                break
-                            nw = self.data[r][c]
-                            if nw.location not in room_items:
-                                if nw.space_type is not None:
-                                    collision = True
-                                    break
-                                nw.space_type = this_type
-                                nw.color = (red,green,blue)
-                                irow = r*10
-                                icol = c*10
-                                self.draw.rectangle((icol, irow, icol+10, irow+10), fill=(red,green,blue), outline=None)
-                                self.status.emit(self.source_img)
-                                time.sleep(self.delay)
-                    if not collision:
+                    max_dist = self.max_box('northwest',cur_item.location, color)
+                    print 'max wall length: %s' % max_dist
+                    if max_dist == 2:
+                        distance = 2
+                    elif max_dist > 2:
+                        distance = max(random.randint(2,max_dist),random.randint(2,max_dist))
+                    else:
+                        distance = 0
+                    if max_dist >= 2:
+                        for c in range(column, column-distance,-1):
+                            for r in range(row, row-distance, -1):
+                                self.color_cell(r, c, color, this_type)
+                    if distance < max_dist and distance > 4:
                         wall = random.randint(1,6)
                         if wall in [1,2]:
                             self.add_random_item(row, column-distance, 'west', space_type='hall')
@@ -301,33 +270,25 @@ class MapBuilderWorker(QThread):
                             self.add_random_item(row-distance, column, 'north', space_type='hall')
                 if roll in [1,3]:
                     #handle southwest
-                    distance = random.randint(2,8)
-                    collision = False
-                    for c in range(column, column-distance,-1):
-                        if collision:
-                            break
-                        for r in range(row, row+distance):
-                            if r<0 or r>=99 or c<0 or c>=99:
-                                collision = True
-                                break
-                            nw = self.data[r][c]
-                            if nw.location not in room_items:
-                                if nw.space_type is not None:
-                                    collision = True
-                                    break
-                                nw.space_type = this_type
-                                nw.color = (red,green,blue)
-                                irow = r*10
-                                icol = c*10
-                                self.draw.rectangle((icol, irow, icol+10, irow+10), fill=(red,green,blue), outline=None)
-                                self.status.emit(self.source_img)
-                                time.sleep(self.delay)
-                    if not collision:
+                    max_dist = self.max_box('southwest',cur_item.location, color)
+                    print 'max wall length: %s' % max_dist
+                    if max_dist == 2:
+                        distance = 2
+                    elif max_dist > 2:
+                        distance = random.randint(2,max_dist)
+                    else:
+                        distance = 0
+                    if max_dist >= 2:
+                        for c in range(column, column-distance,-1):
+                            for r in range(row, row+distance):
+                                self.color_cell(r, c, color, this_type)
+                    if distance < max_dist and distance > 4:
                         wall = random.randint(1,6)
                         if wall in [1,2]:
                             self.add_random_item(row, column-distance, 'west', space_type='hall')
                         if wall in [1,3]:
                             self.add_random_item(row+distance, column, 'south', space_type='hall')
+            self.color_cell(row, column, color, this_type, outline='red')
         else:
             max_len = 1
             hall_len = random.randint(4,20)
