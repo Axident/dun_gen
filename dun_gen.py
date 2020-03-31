@@ -3,7 +3,6 @@ from PySide.QtGui import *
 from customLoader import loadUi
 import os
 import time
-import math
 import sys
 import random
 from PIL import Image, ImageDraw
@@ -140,7 +139,7 @@ class MapBuilderWorker(QThread):
                         if wall in [1,3]:
                             #north wall
                             where = random.randint(column-distance+2, column-2)
-                            self.add_random_item(row-distance, column, 'north', space_type='hall', outline='white')
+                            self.add_random_item(row-distance, where, 'north', space_type='hall', outline='white')
                 if roll in [1,3]:
                     #handle northeast
                     max_dist = self.max_box('northeast',cur_item.location, color)
@@ -160,11 +159,11 @@ class MapBuilderWorker(QThread):
                         if wall in [1,2]:
                             #east wall
                             where = random.randint(row-distance+2, row-2)
-                            self.add_random_item(where, column-distance, 'west', space_type='hall', outline='white')
+                            self.add_random_item(where, column+distance, 'east', space_type='hall', outline='white')
                         if wall in [1,3]:
                             #north wall
                             where = random.randint(column+2, column+distance-2)
-                            self.add_random_item(row-distance, column, 'north', space_type='hall', outline='white')
+                            self.add_random_item(row-distance, where, 'north', space_type='hall', outline='white')
             if direction == 'south':
                 if roll in [1,2]:
                     #handle southwest
