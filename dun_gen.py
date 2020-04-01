@@ -92,51 +92,75 @@ class MapBuilderWorker(QThread):
         self.draw.rectangle((icol, irow, icol+10, irow+10), fill=color, outline=outline)
         #time.sleep(self.delay)
         
+    def door(self, row, column, direction, secret=False):
+        irow = row*10
+        icol = column*10
+        outline = (0,0,255)
+        if secret:
+            outline = 'red'
+        if direction == 'east':
+            self.draw.rectangle((icol-2, irow+2, icol+2, irow+8), fill=(0,0,0), outline=outline)
+        if direction == 'west':
+            self.draw.rectangle((icol+8, irow+2, icol+12, irow+8), fill=(0,0,0), outline=outline)
+        if direction == 'north':
+            self.draw.rectangle((icol+2, irow+8, icol+8, irow+12), fill=(0,0,0), outline=outline)
+        if direction == 'south':
+            self.draw.rectangle((icol+2, irow-2, icol+8, irow+2), fill=(0,0,0), outline=outline)
+        
+        
     def secret_door(self, row, column, wall_length, direction):
         wall = random.randint(1,6)
         if direction == 'northwest':
             if wall in [1,2]:
                 #west wall
                 where = random.randint(row-wall_length+1, row)
-                self.add_random_item(where, column-wall_length, 'west', space_type='hall', outline='white')
+                if self.add_random_item(where, column-wall_length, 'west', space_type='hall'):
+                    self.door(where, column-wall_length, 'west', secret=True)
             if wall in [1,3]:
                 #north wall
                 where = random.randint(column-wall_length+1, column)
-                self.add_random_item(row-wall_length, where, 'north', space_type='hall', outline='white')
+                if self.add_random_item(row-wall_length, where, 'north', space_type='hall'):
+                    self.door(row-wall_length, where, 'north', secret=True)
         if direction == 'northeast':
             if wall in [1,2]:
                 #east wall
                 where = random.randint(row-wall_length+1, row)
-                self.add_random_item(where, column+wall_length, 'east', space_type='hall', outline='white')
+                if self.add_random_item(where, column+wall_length, 'east', space_type='hall'):
+                    self.door(where, column+wall_length, 'east', secret=True)
             if wall in [1,3]:
                 #north wall
                 where = random.randint(column, column+wall_length-1)
-                self.add_random_item(row-wall_length, where, 'north', space_type='hall', outline='white')
+                if self.add_random_item(row-wall_length, where, 'north', space_type='hall'):
+                    self.door(row-wall_length, where, 'north', secret=True)
         if direction == 'southwest':
             if wall in [1,2]:
                 #south wall
                 where = random.randint(column-wall_length+1, column)
-                self.add_random_item(row+wall_length, where, 'south', space_type='hall', outline='white')
+                if self.add_random_item(row+wall_length, where, 'south', space_type='hall'):
+                    self.door(row+wall_length, where, 'south', secret=True)
             if wall in [1,3]:
                 #west wall
                 where = random.randint(row, row+wall_length-1)
-                self.add_random_item(where, column-wall_length, 'west', space_type='hall', outline='white')
+                if self.add_random_item(where, column-wall_length, 'west', space_type='hall'):
+                    self.door(where, column-wall_length, 'west', secret=True)
         if direction == 'southeast':
             if wall in [1,2]:
                 #east wall
                 where = random.randint(row, row+wall_length-1)
-                self.add_random_item(where, column+wall_length, 'east', space_type='hall', outline='white')
+                if self.add_random_item(where, column+wall_length, 'east', space_type='hall'):
+                    self.door(where, column+wall_length, 'east', secret=True)
             if wall in [1,3]:
                 #south wall
                 where = random.randint(column, column+wall_length-1)
-                self.add_random_item(row+wall_length, where, 'south', space_type='hall', outline='white')
+                if self.add_random_item(row+wall_length, where, 'south', space_type='hall'):
+                    self.door(row+wall_length, where, 'south', secret=True)
         
     def add_random_item(self, row, column, direction, space_type=None, outline=None):
         if row<0 or row>=99 or column<0 or column>=99:
-            return
+            return False
         cur_item = self.data[row][column]
         if cur_item.space_type:
-            return
+            return False
         if space_type:
             this_type = space_type
         else:
@@ -156,6 +180,7 @@ class MapBuilderWorker(QThread):
         if this_type == 'room':
             cur_item.space_type = this_type
             roll = random.randint(1,3)
+            created_room = False
             if direction == 'north':
                 if roll in [1,2]:
                     #handle northwest
@@ -171,6 +196,7 @@ class MapBuilderWorker(QThread):
                         for r in range(row, row-distance, -1):
                             for c in range(column, column-distance, -1):
                                 self.color_cell(r, c, color, this_type)
+                        created_room = True
                     if distance < max_dist and distance > 4:
                         self.secret_door(row, column, distance, 'northwest')
                 if roll in [1,3]:
@@ -187,6 +213,7 @@ class MapBuilderWorker(QThread):
                         for r in range(row, row-distance, -1):
                             for c in range(column, column+distance):
                                 self.color_cell(r, c, color, this_type)
+                        created_room = True
                     if distance < max_dist and distance > 4:
                         self.secret_door(row, column, distance, 'northeast')
             if direction == 'south':
@@ -204,6 +231,7 @@ class MapBuilderWorker(QThread):
                         for r in range(row, row+distance):
                             for c in range(column, column-distance, -1):
                                 self.color_cell(r, c, color, this_type)
+                        created_room = True
                     if distance < max_dist and distance > 4:
                         self.secret_door(row, column, distance, 'southwest')
                 if roll in [1,3]:
@@ -220,6 +248,7 @@ class MapBuilderWorker(QThread):
                         for r in range(row, row+distance):
                             for c in range(column, column+distance):
                                 self.color_cell(r, c, color, this_type)
+                        created_room = True
                     if distance < max_dist and distance > 4:
                         self.secret_door(row, column, distance, 'southeast')
             if direction == 'east':
@@ -237,6 +266,7 @@ class MapBuilderWorker(QThread):
                         for c in range(column, column+distance):
                             for r in range(row, row-distance, -1):
                                 self.color_cell(r, c, color, this_type)
+                        created_room = True
                     if distance < max_dist and distance > 4:
                         self.secret_door(row, column, distance, 'northeast')
                 if roll in [1,3]:
@@ -253,6 +283,7 @@ class MapBuilderWorker(QThread):
                         for c in range(column, column+distance):
                             for r in range(row, row+distance):
                                 self.color_cell(r, c, color, this_type)
+                        created_room = True
                     if distance < max_dist and distance > 4:
                         self.secret_door(row, column, distance, 'southeast')
             if direction == 'west':
@@ -270,6 +301,7 @@ class MapBuilderWorker(QThread):
                         for c in range(column, column-distance,-1):
                             for r in range(row, row-distance, -1):
                                 self.color_cell(r, c, color, this_type)
+                        created_room = True
                     if distance < max_dist and distance > 4:
                         self.secret_door(row, column, distance, 'northwest')
                 if roll in [1,3]:
@@ -286,9 +318,12 @@ class MapBuilderWorker(QThread):
                         for c in range(column, column-distance,-1):
                             for r in range(row, row+distance):
                                 self.color_cell(r, c, color, this_type)
+                        created_room = True
                     if distance < max_dist and distance > 4:
                         self.secret_door(row, column, distance, 'southwest')
-            self.color_cell(row, column, color, this_type, outline='red')
+            #self.color_cell(row, column, color, this_type, outline='red')
+            if created_room:
+                self.door(row, column, direction, secret=False)
             self.status.emit(self.source_img)
         else:
             max_len = 1
@@ -325,7 +360,7 @@ class MapBuilderWorker(QThread):
             cur_item.color = (200,200,200)
             irow = row*10
             icol = column*10
-            self.draw.rectangle((icol, irow, icol+10, irow+10), fill=(200,200,200), outline=outline)
+            self.draw.rectangle((icol, irow, icol+10, irow+10), fill=(200,200,200), outline='grey')
             self.status.emit(self.source_img)
             time.sleep(self.delay)
             for item in to_make_hall:
@@ -337,8 +372,8 @@ class MapBuilderWorker(QThread):
                 self.draw.rectangle((icol, irow, icol+10, irow+10), fill=(200,200,200), outline='grey')
                 self.status.emit(self.source_img)
                 time.sleep(self.delay)
-            #if connection:
-                #connection.color = (255,255,255)
+            if connection:
+                self.door(next_row, next_col, direction, secret=False)
                     
             if direction == 'north':
                 next_row -= 1
@@ -401,6 +436,7 @@ class MapBuilderWorker(QThread):
                     if roll in [17,18,20]:
                         just_branched = True
                         self.add_random_item(next_row-1, next_col, 'north')
+        return True
         
     def stop(self):
         self.terminate()
