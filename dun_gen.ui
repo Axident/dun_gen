@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>881</width>
-    <height>762</height>
+    <width>1082</width>
+    <height>940</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -23,9 +23,9 @@
       <widget class="QWidget" name="scrollAreaWidgetContents">
        <property name="geometry">
         <rect>
-         <x>-11</x>
-         <y>0</y>
-         <width>1018</width>
+         <x>0</x>
+         <y>-122</y>
+         <width>1045</width>
          <height>1018</height>
         </rect>
        </property>
@@ -54,6 +54,62 @@
      </widget>
     </item>
     <item row="1" column="0">
+     <layout class="QHBoxLayout" name="horizontalLayout">
+      <item>
+       <widget class="QLabel" name="label">
+        <property name="text">
+         <string>corner is branch chance</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QSlider" name="also_straight">
+        <property name="minimum">
+         <number>1</number>
+        </property>
+        <property name="maximum">
+         <number>20</number>
+        </property>
+        <property name="value">
+         <number>10</number>
+        </property>
+        <property name="orientation">
+         <enum>Qt::Horizontal</enum>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QLineEdit" name="also_straight_value"/>
+      </item>
+      <item>
+       <widget class="QLabel" name="label_2">
+        <property name="text">
+         <string>vanilla hallway chance</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QSlider" name="no_change">
+        <property name="minimum">
+         <number>1</number>
+        </property>
+        <property name="maximum">
+         <number>30</number>
+        </property>
+        <property name="value">
+         <number>16</number>
+        </property>
+        <property name="orientation">
+         <enum>Qt::Horizontal</enum>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QLineEdit" name="no_change_value"/>
+      </item>
+     </layout>
+    </item>
+    <item row="2" column="0">
      <widget class="QPushButton" name="doit">
       <property name="text">
        <string>Generate Map</string>
