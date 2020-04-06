@@ -6,104 +6,187 @@ import re
 import time
 import sys
 import random
+from functools import partial
 from PIL import Image, ImageDraw, ImageFont
 
 here = os.path.dirname(__file__)
+from dun_gen_builder import *
 
-class Cell(object):
-    direction = None
-    space_type = None
-    name = None
-    color = (125,125,125)
-    location = [None,None]
-
-    def __init__(self, location):
-        self.location = location
-
-class MapBuilderWorker(QThread):
-    status = Signal(object)
-    finished = Signal(object)
-    data = []
-    source_img = None
-    draw = None
-    delay = .05
-    continue_chance = 0
-    straight_hall_chance = 0
-    continue_pool = 0
-    parent = None
-    room_count = 0
-
+class MyMainWindow(QMainWindow):
     def __init__(self, parent=None):
-        QThread.__init__(self, parent)
-        self.parent = parent
-        print 'parent =',self.parent
-
-    def generate(self):
-        self.data = []
-        self.room_count = 0
-        self.source_img = Image.new('RGB', (1000,1000))
-        self.draw = ImageDraw.Draw(self.source_img)
-        for r in range(0,100):
-            row = []
-            for c in range(0, 100):
-                cell = Cell([r,c])
-                row.append(cell)
-                irow = r*10
-                icol = c*10
-                self.draw.rectangle((icol, irow, icol+10, irow+10), fill='black', outline=(20,20,20))
-            self.data.append(row)
-            
-    def max_box(self, direction, current_location, color):
-        largest_desired_room = 12
-        row, column = current_location
-        max_space = 1
-        #print 'checking area %s of %s' % (direction, current_location)
-        while max_space <= largest_desired_room:
-            for r in range(0, max_space):
-                for c in range(0, max_space):
-                    if [r,c] != [0,0]:
-                        if direction == "northwest":
-                            r_test = row - r
-                            c_test = column - c
-                        elif direction == "northeast":
-                            r_test = row - r
-                            c_test = column + c
-                        elif direction == "southwest":
-                            r_test = row + r
-                            c_test = column - c
-                        elif direction == "southeast":
-                            r_test = row + r
-                            c_test = column + c
-                        if r_test<=0 or r_test>=99 or c_test<=0 or c_test>=99:
-                            #print "box test out of bounds [%s,%s]" % (r_test, c_test)
-                            return max_space - 1
-                        nw = self.data[r_test][c_test]
-                        if nw.space_type is not None:
-                            if nw.color != color:
-                                return max_space -1
-            max_space += 1
-        return largest_desired_room
-            
-    def run(self):
-        self.generate()
-        self.color_cell(99, 50, (200,200,200), 'hall', outline='grey')
-        self.add_random_item(98, 50, 'north', space_type='hall')
-        self.finished.emit(self.source_img)
+        QMainWindow.__init__(self, parent)
         
-    def color_cell(self, row, column, color, space_type, outline='grey'):
-        nw = self.data[row][column]
-        nw.space_type = space_type
-        nw.color = color
+        loadUi(r"%s\dun_gen.ui" % here, self)
+        self.current_location = [99,50]
+        self.data = []
+        self.shown = []
+        self.rooms = {}
+        
+        self.map_builder = MapBuilderWorker(parent=self)
+        self.map_builder.status.connect(self.update_image)
+        self.map_builder.finished.connect(self.save_map)
+        
+        self.doit.clicked.connect(self.gen_map)
+        self.north_entrance.clicked.connect(partial(self.add_to_map, "north"))
+        self.east_entrance.clicked.connect(partial(self.add_to_map, "east"))
+        self.west_entrance.clicked.connect(partial(self.add_to_map, "west"))
+        
+        self.move_north.clicked.connect(partial(self.move, 'north'))
+        self.move_south.clicked.connect(partial(self.move, 'south'))
+        self.move_west.clicked.connect(partial(self.move, 'west'))
+        self.move_east.clicked.connect(partial(self.move, 'east'))
+        
+        self.also_straight.valueChanged.connect(self.update_also_straight)
+        self.no_change.valueChanged.connect(self.update_no_change)
+        sel_model = self.operations.selectionModel()
+        sel_model.selectionChanged.connect(self.highlight_selection)
+        
+        self.update_also_straight()
+        self.update_no_change()
+        self.splitter.setSizes([1010, 200])
+        self.map_image = None
+        self.known_image = None
+        
+    def update_also_straight(self, *args):
+        self.also_straight_value.setText(str(self.also_straight.value()))
+        
+    def update_no_change(self, *args):
+        self.no_change_value.setText(str(self.no_change.value()))
+        
+    def highlight_selection(self, selection):
+        sel_row = selection.indexes()[0].row()
+        contents = self.operations.item(sel_row).text()
+        test = re.search('\[(.*),(.*)\].*', contents)
+        if test:
+            temp_image = self.map_image.copy()
+            draw = ImageDraw.Draw(temp_image)
+            font = ImageFont.truetype("arial.ttf", 20)
+            draw.text((int(test.groups()[1])*10-2, int(test.groups()[0])*10-2), 'O', font=font, fill='black')
+            font = ImageFont.truetype("arial.ttf", 18)
+            draw.text((int(test.groups()[1])*10, int(test.groups()[0])*10), 'X', font=font, fill='red')
+            data = temp_image.tobytes("raw","RGB")
+            qim = QImage(data, temp_image.size[0], temp_image.size[1], QImage.Format_RGB888)
+            self.map.setPixmap(QPixmap(qim))
+        
+    def gen_map(self):
+        self.current_location = [99,50]
+        self.data = []
+        self.shown = []
+        self.rooms = {}
+        if self.map_builder.isRunning():
+            self.map_builder.stop()
+        self.map_builder.continue_chance = self.also_straight.value()
+        self.map_builder.straight_hall_chance = self.no_change.value()
+        self.map_builder.continue_pool = self.also_straight.maximum()
+        self.map_builder.start_entrance = 'south'
+        self.map_builder.generate()
+        self.known_image = self.map_builder.source_img.copy()
+        self.draw = ImageDraw.Draw(self.known_image)
+        self.operations.clear()
+        self.map_builder.start()
+        
+    def add_to_map(self, direction):
+        print 'adding %s entrance' % direction
+        if self.map_builder.isRunning():
+            self.map_builder.stop()
+        self.map_builder.continue_chance = self.also_straight.value()
+        self.map_builder.straight_hall_chance = self.no_change.value()
+        self.map_builder.continue_pool = self.also_straight.maximum()
+        self.map_builder.start_entrance = direction
+        self.map_builder.start()
+        
+    def redraw_self(self):
+        temp_image = self.known_image.copy()
+        draw = ImageDraw.Draw(temp_image)
+        row, column = self.current_location
+        font = ImageFont.truetype("arial.ttf", 16)
+        draw.text(((column*10)-2, (row*10)-2), 'O', font=font, fill='black')
+        font = ImageFont.truetype("arial.ttf", 14)
+        draw.text(((column*10), (row*10-2)), 'X', font=font, fill='red')
+        data = temp_image.tobytes("raw","RGB")
+        qim = QImage(data, temp_image.size[0], temp_image.size[1], QImage.Format_RGB888)
+        self.map_masked.setPixmap(QPixmap(qim))
+        
+    def look_around(self):
+        row, column = self.current_location
+        item = self.data[row][column]
+        print item
+        self.shown.append([row, column])
+        self.color_cell(row, column)
+        for direction in ['north','south','west','east','northwest','northeast','southwest','southeast']:
+            self.look(row, column, direction)
+        
+    def look(self, row, column, direction):
+        item = self.data[row][column]
+        color = item.color
+        if item.space_type == 'room':
+            room_cells = self.rooms.get(str(color), [])
+            for rc in room_cells:
+                r,c = rc
+                self.shown.append([r,c])
+                self.color_cell(r,c)
+            self.border_room(room_cells)
+            for rc in room_cells:
+                r,c = rc
+                item = self.data[r][c]
+                for door in item.doors:
+                    self.door(r, c, door)
+                for sd in item.secrets:
+                    self.door(r, c, sd, secret=True)
+            return
+        next_row = row
+        next_col = column
+        if 'north' in direction:
+            next_row -= 1
+        if 'south' in direction:
+            next_row += 1
+        if 'west' in direction:
+            next_col -= 1
+        if 'east' in direction:
+            next_col += 1
+        if next_row<=0 or next_row>=99 or next_col<=0 or next_col>=99:
+            return
+        next_item = self.data[next_row][next_col]
+        if next_item.space_type and next_item.color == color:
+            self.shown.append([next_row,next_col])
+            self.color_cell(next_row,next_col)
+            self.look(next_row, next_col, direction)   
+            
+    def door(self, row, column, direction, secret=False):
+        irow = row*10
+        icol = column*10
+        outline = (0,0,255)
+        if secret:
+            outline = 'red'
+        if direction == 'east':
+            self.draw.rectangle((icol+8, irow+2, icol+12, irow+8), fill=(0,0,0), outline=outline)
+        if direction == 'west':
+            self.draw.rectangle((icol-2, irow+2, icol+2, irow+8), fill=(0,0,0), outline=outline)
+        if direction == 'north':
+            self.draw.rectangle((icol+2, irow-2, icol+8, irow+2), fill=(0,0,0), outline=outline)
+        if direction == 'south':
+            self.draw.rectangle((icol+2, irow+8, icol+8, irow+12), fill=(0,0,0), outline=outline)
+            
+    def color_cell(self, row, column, outline='grey'):
+        item = self.data[row][column]
+        color = item.color
         irow = row*10
         icol = column*10
         self.draw.rectangle((icol, irow, icol+10, irow+10), fill=color, outline=outline)
-        
+        if item.space_type == 'hall':
+            for door in item.doors:
+                self.door(row, column, door)
+            for sd in item.secrets:
+                self.door(row, column, sd, secret=True)
+            
     def border_room(self, room, outline='white'):
+        r,c = room[0]
+        start = self.data[r][c]
+        my_color = start.color
         for cell in room:
-            r,c = cell.location
+            r,c = cell
             irow = r*10
             icol = c*10
-            my_color = cell.color
             # is north wall?
             if r==0:
                 self.draw.line((icol, irow, icol+10, irow), fill='black', width=3)
@@ -140,345 +223,9 @@ class MapBuilderWorker(QThread):
                 if east.color != my_color:
                     self.draw.line((icol+10, irow, icol+10, irow+10), fill='black', width=3)
                     self.draw.line((icol+10, irow, icol+10, irow+10), fill=outline, width=1)
-        self.room_count+=1
         
-    def door(self, row, column, direction, secret=False):
-        irow = row*10
-        icol = column*10
-        outline = (0,0,255)
-        if secret:
-            outline = 'red'
-        if direction == 'east':
-            self.draw.rectangle((icol-2, irow+2, icol+2, irow+8), fill=(0,0,0), outline=outline)
-        if direction == 'west':
-            self.draw.rectangle((icol+8, irow+2, icol+12, irow+8), fill=(0,0,0), outline=outline)
-        if direction == 'north':
-            self.draw.rectangle((icol+2, irow+8, icol+8, irow+12), fill=(0,0,0), outline=outline)
-        if direction == 'south':
-            self.draw.rectangle((icol+2, irow-2, icol+8, irow+2), fill=(0,0,0), outline=outline)
-        
-        
-    def secret_door(self, row, column, wall_length, direction):
-        max_range = 6
-        if self.room_count < 12:
-            max_range = 4
-        wall = random.randint(1,max_range)        
-        if direction == 'northwest':
-            if wall in [1,2,3]:
-                #west wall
-                where = random.randint(row-wall_length+1, row)
-                if self.add_random_item(where, column-wall_length, 'west'):
-                    self.door(where, column-wall_length, 'west', secret=(random.randint(1,3)==1))
-            if wall in [1,2,4]:
-                #north wall
-                where = random.randint(column-wall_length+1, column)
-                if self.add_random_item(row-wall_length, where, 'north'):
-                    self.door(row-wall_length, where, 'north', secret=(random.randint(1,3)==1))
-        if direction == 'northeast':
-            if wall in [1,2,3]:
-                #east wall
-                where = random.randint(row-wall_length+1, row)
-                if self.add_random_item(where, column+wall_length, 'east'):
-                    self.door(where, column+wall_length, 'east', secret=(random.randint(1,3)==1))
-            if wall in [1,2,4]:
-                #north wall
-                where = random.randint(column, column+wall_length-1)
-                if self.add_random_item(row-wall_length, where, 'north'):
-                    self.door(row-wall_length, where, 'north', secret=(random.randint(1,3)==1))
-        if direction == 'southwest':
-            if wall in [1,2,3]:
-                #south wall
-                where = random.randint(column-wall_length+1, column)
-                if self.add_random_item(row+wall_length, where, 'south'):
-                    self.door(row+wall_length, where, 'south', secret=(random.randint(1,3)==1))
-            if wall in [1,2,4]:
-                #west wall
-                where = random.randint(row, row+wall_length-1)
-                if self.add_random_item(where, column-wall_length, 'west'):
-                    self.door(where, column-wall_length, 'west', secret=(random.randint(1,3)==1))
-        if direction == 'southeast':
-            if wall in [1,2,3]:
-                #east wall
-                where = random.randint(row, row+wall_length-1)
-                if self.add_random_item(where, column+wall_length, 'east'):
-                    self.door(where, column+wall_length, 'east', secret=(random.randint(1,3)==1))
-            if wall in [1,2,4]:
-                #south wall
-                where = random.randint(column, column+wall_length-1)
-                if self.add_random_item(row+wall_length, where, 'south'):
-                    self.door(row+wall_length, where, 'south', secret=(random.randint(1,3)==1))
-                    
-    def add_random_room(self, cur_item, row, column, direction, this_type):
-        red = random.randint(20,255)
-        blue = random.randint(20,255)
-        green = random.randint(20,255)
-        color = (red,green,blue)
-        roll = random.randint(1,3)
-        created_room = False
-        if direction == 'north':
-            if roll in [1,2]:
-                #handle northwest
-                max_dist = self.max_box('northwest',cur_item.location, color)
-                if max_dist == 2:
-                    distance = 2
-                elif max_dist > 2:
-                    distance = max(random.randint(2,max_dist),random.randint(2,max_dist))
-                else:
-                    distance = 0
-                if max_dist >= 2:
-                    room = []
-                    for r in range(row, row-distance, -1):
-                        for c in range(column, column-distance, -1):
-                            self.color_cell(r, c, color, this_type)
-                            room.append(self.data[r][c])
-                    self.border_room(room)
-                    created_room = True
-                    cur_item.space_type = this_type
-                if distance < max_dist and distance > 4:
-                    self.secret_door(row, column, distance, 'northwest')
-            if roll in [1,3]:
-                #handle northeast
-                max_dist = self.max_box('northeast',cur_item.location, color)
-                if max_dist == 2:
-                    distance = 2
-                elif max_dist > 2:
-                    distance = max(random.randint(2,max_dist),random.randint(2,max_dist))
-                else:
-                    distance = 0
-                if max_dist >= 2:
-                    room = []
-                    for r in range(row, row-distance, -1):
-                        for c in range(column, column+distance):
-                            self.color_cell(r, c, color, this_type)
-                            room.append(self.data[r][c])
-                    self.border_room(room)
-                    created_room = True
-                    cur_item.space_type = this_type
-                if distance < max_dist and distance > 4:
-                    self.secret_door(row, column, distance, 'northeast')
-        if direction == 'south':
-            if roll in [1,2]:
-                #handle southwest
-                max_dist = self.max_box('southwest',cur_item.location, color)
-                if max_dist == 2:
-                    distance = 2
-                elif max_dist > 2:
-                    distance = max(random.randint(2,max_dist),random.randint(2,max_dist))
-                else:
-                    distance = 0
-                if max_dist >= 2:
-                    room = []
-                    for r in range(row, row+distance):
-                        for c in range(column, column-distance, -1):
-                            self.color_cell(r, c, color, this_type)
-                            room.append(self.data[r][c])
-                    self.border_room(room)
-                    created_room = True
-                    cur_item.space_type = this_type
-                if distance < max_dist and distance > 4:
-                    self.secret_door(row, column, distance, 'southwest')
-            if roll in [1,3]:
-                #handle southeast
-                max_dist = self.max_box('southeast',cur_item.location, color)
-                if max_dist == 2:
-                    distance = 2
-                elif max_dist > 2:
-                    distance = max(random.randint(2,max_dist),random.randint(2,max_dist))
-                else:
-                    distance = 0
-                if max_dist >= 2:
-                    room = []
-                    for r in range(row, row+distance):
-                        for c in range(column, column+distance):
-                            self.color_cell(r, c, color, this_type)
-                            room.append(self.data[r][c])
-                    self.border_room(room)
-                    created_room = True
-                    cur_item.space_type = this_type
-                if distance < max_dist and distance > 4:
-                    self.secret_door(row, column, distance, 'southeast')
-        if direction == 'east':
-            if roll in [1,2]:
-                #handle northeast
-                max_dist = self.max_box('northeast',cur_item.location, color)
-                if max_dist == 2:
-                    distance = 2
-                elif max_dist > 2:
-                    distance = max(random.randint(2,max_dist),random.randint(2,max_dist))
-                else:
-                    distance = 0
-                if max_dist >= 2:
-                    room = []
-                    for c in range(column, column+distance):
-                        for r in range(row, row-distance, -1):
-                            self.color_cell(r, c, color, this_type)
-                            room.append(self.data[r][c])
-                    self.border_room(room)
-                    created_room = True
-                    cur_item.space_type = this_type
-                if distance < max_dist and distance > 4:
-                    self.secret_door(row, column, distance, 'northeast')
-            if roll in [1,3]:
-                #handle southeast
-                max_dist = self.max_box('southeast',cur_item.location, color)
-                if max_dist == 2:
-                    distance = 2
-                elif max_dist > 2:
-                    distance = max(random.randint(2,max_dist),random.randint(2,max_dist))
-                else:
-                    distance = 0
-                if max_dist >= 2:
-                    room = []
-                    for c in range(column, column+distance):
-                        for r in range(row, row+distance):
-                            self.color_cell(r, c, color, this_type)
-                            room.append(self.data[r][c])
-                    self.border_room(room)
-                    created_room = True
-                    cur_item.space_type = this_type
-                if distance < max_dist and distance > 4:
-                    self.secret_door(row, column, distance, 'southeast')
-        if direction == 'west':
-            if roll in [1,2]:
-                #handle northwest
-                max_dist = self.max_box('northwest',cur_item.location, color)
-                if max_dist == 2:
-                    distance = 2
-                elif max_dist > 2:
-                    distance = max(random.randint(2,max_dist),random.randint(2,max_dist))
-                else:
-                    distance = 0
-                if max_dist >= 2:
-                    room = []
-                    for c in range(column, column-distance,-1):
-                        for r in range(row, row-distance, -1):
-                            self.color_cell(r, c, color, this_type)
-                            room.append(self.data[r][c])
-                    self.border_room(room)
-                    created_room = True
-                    cur_item.space_type = this_type
-                if distance < max_dist and distance > 4:
-                    self.secret_door(row, column, distance, 'northwest')
-            if roll in [1,3]:
-                #handle southwest
-                max_dist = self.max_box('southwest',cur_item.location, color)
-                if max_dist == 2:
-                    distance = 2
-                elif max_dist > 2:
-                    distance = random.randint(2,max_dist)
-                else:
-                    distance = 0
-                if max_dist >= 2:
-                    room = []
-                    for c in range(column, column-distance,-1):
-                        for r in range(row, row+distance):
-                            self.color_cell(r, c, color, this_type)
-                            room.append(self.data[r][c])
-                    self.border_room(room)
-                    created_room = True
-                    cur_item.space_type = this_type
-                if distance < max_dist and distance > 4:
-                    self.secret_door(row, column, distance, 'southwest')
-        if created_room:
-            item = QListWidgetItem("[%d,%d] created room" % (row, column))
-            item.setForeground(QColor(color[0],color[1],color[2]))
-            self.parent.operations.addItem(item)
-            self.door(row, column, direction, secret=False)
-        else:
-            item = QListWidgetItem("[%d,%d] failed room" % (row, column))
-            item.setForeground(QColor(255,0,0))
-            self.parent.operations.addItem(item)
-        self.status.emit(self.source_img)
-        return created_room
-    
-    def add_hall_left(self, row, column, direction):
-        #print 'turn left'
-        if direction == 'north':
-            return self.add_step(row, column-1, 'west')
-        elif direction == 'west':
-            return self.add_step(row+1, column, 'south')
-        elif direction == 'south':
-            return self.add_step(row, column+1, 'east')
-        elif direction == 'east':
-            return self.add_step(row-1, column, 'north')
-            
-    def add_hall_right(self, row, column, direction):
-        #print 'turn right'
-        if direction == 'north':
-            return self.add_step(row, column+1, 'east')
-        elif direction == 'west':
-            return self.add_step(row-1, column, 'north')
-        elif direction == 'south':
-            return self.add_step(row, column-1, 'west')
-        elif direction == 'east':
-            return self.add_step(row+1, column, 'south')
-            
-    def add_room_right(self, row, column, direction):
-        if direction == 'north':
-            room_item = self.data[row][column+1]
-            return self.add_random_room(room_item, row, column+1, 'east', 'room')
-        elif direction == 'west':
-            room_item = self.data[row-1][column]
-            return self.add_random_room(room_item, row-1, column, 'north', 'room')
-        elif direction == 'south':
-            room_item = self.data[row][column-1]
-            return self.add_random_room(room_item, row, column-1, 'west', 'room')
-        elif direction == 'east':
-            room_item = self.data[row+1][column]
-            return self.add_random_room(room_item, row+1, column, 'south', 'room')
-            
-    def add_room_left(self, row, column, direction):
-        if direction == 'north':
-            room_item = self.data[row][column-1]
-            return self.add_random_room(room_item, row, column-1, 'west', 'room')
-        elif direction == 'west':
-            room_item = self.data[row+1][column]
-            return self.add_random_room(room_item, row+1, column, 'south', 'room')
-        elif direction == 'south':
-            room_item = self.data[row][column+1]
-            return self.add_random_room(room_item, row, column+1, 'east', 'room')
-        elif direction == 'east':
-            room_item = self.data[row-1][column]
-            return self.add_random_room(room_item, row-1, column, 'north', 'room')
-        
-    def add_step(self, row, column, direction):
-        if row<=0 or row>=99 or column<=0 or column>=99:
-            print '%sbound hall out of bounds, redirecting' % direction,
-            last_row = row
-            last_col = column
-            if direction == 'north':
-                last_row += 1
-            elif direction == 'south':
-                last_row -= 1
-            elif direction == 'west':
-                last_col += 1
-            elif direction == 'east':
-                last_col -= 1
-            roll = random.randint(0,1)
-            if roll == 0:
-                print 'hall left'
-                if not self.add_hall_left(last_row, last_col, direction):
-                    print 'no, hall right'
-                    return self.add_hall_right(last_row, last_col, direction)
-            elif roll == 1:
-                print 'hall right'
-                if not self.add_hall_right(last_row, last_col, direction):
-                    print 'no, hall left'
-                    return self.add_hall_left(last_row, last_col, direction)
-            return False
-            
-        cur_item = self.data[row][column]
-        if cur_item.space_type:
-            if cur_item.space_type=='room':
-                self.door(row, column, direction, secret=(random.randint(1,3)==1))
-                return True
-            return False
-            
-        cur_item.direction = direction
-        self.color_cell(row, column, (200,200,200), 'hall', outline='grey')
-        self.status.emit(self.source_img)
-        time.sleep(self.delay)
-        
+    def move(self, direction):
+        row, column = self.current_location
         next_row = row
         next_col = column
         if direction == 'north':
@@ -489,136 +236,44 @@ class MapBuilderWorker(QThread):
             next_col -= 1
         elif direction == 'east':
             next_col += 1
-            
-        added_step = False
-        added_room = False
-        also_go_straight = True
-        if random.randint(0,self.continue_pool) > self.continue_chance:
-            also_go_straight = False
-            
-        min = 0
-        if self.room_count < 4:
-            min = 1
-            also_go_straight = True
-        roll = random.randint(min,self.straight_hall_chance)
-        if roll == 0:
-            print 'room straight'
-            room_item = self.data[next_row][next_col]
-            if self.add_random_room(room_item, next_row, next_col, direction, 'room'):
-                also_go_straight = False
-            else:
-                print 'failed to add room ahead, continuing hallway'
-                roll = random.randint(1,5)
-        if roll == 1:
-            print 'turn left'
-            added_step = self.add_hall_left(row, column, direction)
-            if also_go_straight:
-                self.add_step(next_row, next_col, direction)
-        elif roll == 2:
-            print 'turn right'
-            added_step = self.add_hall_right(row, column, direction)
-            if also_go_straight:
-                self.add_step(next_row, next_col, direction)
-        elif roll == 3:
-            print 'room right'
-            created = self.add_room_right(row, column, direction)
-            if also_go_straight or not created:
-                self.add_step(next_row, next_col, direction)
-        elif roll == 4:
-            print 'room left'
-            created = self.add_room_left(row, column, direction)
-            if also_go_straight or not created:
-                self.add_step(next_row, next_col, direction)
-        else:
-            print 'step straight'
-            return self.add_step(next_row, next_col, direction)
-        
-    def add_random_item(self, row, column, direction, space_type=None, outline=None):
-        if row<=0 or row>=99 or column<=0 or column>=99:
+        if next_row<=0 or next_row>=99 or next_col<=0 or next_col>=99:
+            print "There be dragons! Can't go that way!"
             return False
-        cur_item = self.data[row][column]
-        if cur_item.space_type:
-            self.door(row, column, direction, secret=True)
-            return True
-        if space_type:
-            this_type = space_type
-        else:
-            roll = random.randint(1,10)
-            if roll <= 7:
-                this_type = 'hall'
-            else:
-                this_type = 'room'
-                
-        #print 'adding %s %s from (%s,%s)' % (this_type, direction, row, column)
+        next_item = self.data[next_row][next_col]
+        current_item = self.data[row][column]
+        if not next_item.space_type:
+            print "Empty space. Can't go that way."
+            return False
+        if not next_item.color == current_item.color:
+            if direction not in current_item.doors and direction not in current_item.secrets:
+                print "Wall. You need a door."
+                return False
+        self.current_location = [next_row, next_col]
+        #if [next_row, next_col] not in self.shown:
+        self.look_around()
+        self.redraw_self()
         
-        if this_type == 'room':
-            self.add_random_room(cur_item, row, column, direction, this_type)
-        else:
-            self.add_step(row, column, direction)
-        return True
-        
-    def stop(self):
-        self.terminate()
-        
-class MyMainWindow(QMainWindow):
-    def __init__(self, parent=None):
-        QMainWindow.__init__(self, parent)
-        
-        loadUi(r"%s\dun_gen.ui" % here, self)
-        
-        self.map_builder = MapBuilderWorker(parent=self)
-        self.map_builder.status.connect(self.update_image)
-        self.map_builder.finished.connect(self.save_map)
-        self.doit.clicked.connect(self.gen_map)
-        self.also_straight.valueChanged.connect(self.update_also_straight)
-        self.no_change.valueChanged.connect(self.update_no_change)
-        sel_model = self.operations.selectionModel()
-        sel_model.selectionChanged.connect(self.highlight_selection)
-        self.update_also_straight()
-        self.update_no_change()
-        self.splitter.setSizes([1010, 200])
-        self.map_image = None
-        
-    def update_also_straight(self, *args):
-        self.also_straight_value.setText(str(self.also_straight.value()))
-        
-    def update_no_change(self, *args):
-        self.no_change_value.setText(str(self.no_change.value()))
-        
-    def highlight_selection(self, selection):
-        sel_row = selection.indexes()[0].row()
-        contents = self.operations.item(sel_row).text()
-        test = re.search('\[(.*),(.*)\].*', contents)
-        if test:
-            temp_image = self.map_image.copy()
-            draw = ImageDraw.Draw(temp_image)
-            font = ImageFont.truetype("arial.ttf", 20)
-            draw.text((int(test.groups()[1])*10-2, int(test.groups()[0])*10-2), 'O', font=font, fill='black')
-            font = ImageFont.truetype("arial.ttf", 18)
-            draw.text((int(test.groups()[1])*10, int(test.groups()[0])*10), 'X', font=font, fill='red')
-            data = temp_image.tobytes("raw","RGB")
-            qim = QImage(data, temp_image.size[0], temp_image.size[1], QImage.Format_RGB888)
-            self.map.setPixmap(QPixmap(qim))
-        
-    def gen_map(self):
-        if self.map_builder.isRunning():
-            self.map_builder.stop()
-        self.map_builder.continue_chance = self.also_straight.value()
-        self.map_builder.straight_hall_chance = self.no_change.value()
-        self.map_builder.continue_pool = self.also_straight.maximum()
-        self.operations.clear()
-        self.map_builder.start()
+    def collect_rooms(self):
+        self.rooms = {}
+        for r in range(0,100):
+            for c in range(0, 100):
+                cell = self.data[r][c]
+                if cell.space_type == 'room':
+                    cells = self.rooms.get(str(cell.color), [])
+                    cells.append([r,c])
+                    self.rooms[str(cell.color)] = cells
         
     def save_map(self, image):
         image.save(r'D:\Dev\Python\dun_gen\test.bmp')
+        self.data = self.map_builder.data
+        self.collect_rooms()
         print 'done'
         
     def update_image(self, image):
         self.map_image = image
         data = image.tobytes("raw","RGB")
         qim = QImage(data, image.size[0], image.size[1], QImage.Format_RGB888)
-        pixmap = QPixmap(qim)#.scaled(height, height, Qt.KeepAspectRatio)
-        self.map.setPixmap(pixmap)
+        self.map.setPixmap(QPixmap(qim))
         
 def launch_it():
     app = QApplication([])
