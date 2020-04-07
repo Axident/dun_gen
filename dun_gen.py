@@ -21,6 +21,10 @@ class MyMainWindow(QMainWindow):
         self.data = []
         self.shown = []
         self.rooms = {}
+        self.halways = {}
+        self.rooms_known = {}
+        self.halls_known = {}
+        self.show_secrets = False
         
         self.map_builder = MapBuilderWorker(parent=self)
         self.map_builder.status.connect(self.update_image)
@@ -46,6 +50,32 @@ class MyMainWindow(QMainWindow):
         self.splitter.setSizes([1010, 200])
         self.map_image = None
         self.known_image = None
+        
+        #hide tuners
+        self.branch_label.hide()
+        self.also_straight.hide()
+        self.also_straight_value.hide()
+        self.hallway_label.hide()
+        self.no_change.hide()
+        self.no_change_value.hide()
+        
+        self.installEventFilter(self)
+
+    def eventFilter(self, object, event):
+        if event.type() == QEvent.Type.KeyPress:
+            if event.key() == Qt.Key_W:
+                print 'moving north'
+                self.move('north')
+            if event.key() == Qt.Key_A:
+                print 'moving west'
+                self.move('west')
+            if event.key() == Qt.Key_S:
+                print 'moving south'
+                self.move('south')
+            if event.key() == Qt.Key_D:
+                print 'moving east'
+                self.move('east')
+            return True
         
     def update_also_straight(self, *args):
         self.also_straight_value.setText(str(self.also_straight.value()))
@@ -73,6 +103,8 @@ class MyMainWindow(QMainWindow):
         self.data = []
         self.shown = []
         self.rooms = {}
+        self.rooms_known = {}
+        self.halls_known = {str([99,50]):'known'}
         if self.map_builder.isRunning():
             self.map_builder.stop()
         self.map_builder.continue_chance = self.also_straight.value()
@@ -84,6 +116,8 @@ class MyMainWindow(QMainWindow):
         self.draw = ImageDraw.Draw(self.known_image)
         self.operations.clear()
         self.map_builder.start()
+        self.color_cell(99,50)
+        self.redraw_self()
         
     def add_to_map(self, direction):
         print 'adding %s entrance' % direction
@@ -110,13 +144,14 @@ class MyMainWindow(QMainWindow):
     def look_around(self):
         row, column = self.current_location
         item = self.data[row][column]
-        print item
+        #print item
         self.shown.append([row, column])
         self.color_cell(row, column)
         for direction in ['north','south','west','east','northwest','northeast','southwest','southeast']:
             self.look(row, column, direction)
         
     def look(self, row, column, direction):
+        cur_row, cur_col = self.current_location
         item = self.data[row][column]
         color = item.color
         if item.space_type == 'room':
@@ -131,8 +166,15 @@ class MyMainWindow(QMainWindow):
                 item = self.data[r][c]
                 for door in item.doors:
                     self.door(r, c, door)
+                is_near = False
+                if cur_row + 1 == r or cur_row - 1 == r or cur_row == r:
+                    if cur_col + 1 == c or cur_col - 1 == c or cur_col == c:
+                        is_near = True
                 for sd in item.secrets:
-                    self.door(r, c, sd, secret=True)
+                    if self.show_secrets or is_near:
+                        self.door(r, c, sd, secret=True)
+            self.rooms_known[str(color)] = 'known'
+            self.set_known()
             return
         next_row = row
         next_col = column
@@ -150,6 +192,8 @@ class MyMainWindow(QMainWindow):
         if next_item.space_type and next_item.color == color:
             self.shown.append([next_row,next_col])
             self.color_cell(next_row,next_col)
+            self.halls_known[str(next_item.location)] = 'known'
+            self.set_known()
             self.look(next_row, next_col, direction)   
             
     def door(self, row, column, direction, secret=False):
@@ -168,6 +212,11 @@ class MyMainWindow(QMainWindow):
             self.draw.rectangle((icol+2, irow+8, icol+8, irow+12), fill=(0,0,0), outline=outline)
             
     def color_cell(self, row, column, outline='grey'):
+        is_near = False
+        cur_row, cur_col = self.current_location
+        if cur_row + 1 == row or cur_row - 1 == row or cur_row == row:
+            if cur_col + 1 == column or cur_col - 1 == column or cur_col == column:
+                is_near = True
         item = self.data[row][column]
         color = item.color
         irow = row*10
@@ -177,7 +226,8 @@ class MyMainWindow(QMainWindow):
             for door in item.doors:
                 self.door(row, column, door)
             for sd in item.secrets:
-                self.door(row, column, sd, secret=True)
+                if self.show_secrets or is_near:
+                    self.door(row, column, sd, secret=True)
             
     def border_room(self, room, outline='white'):
         r,c = room[0]
@@ -255,6 +305,7 @@ class MyMainWindow(QMainWindow):
         
     def collect_rooms(self):
         self.rooms = {}
+        self.halways = {}
         for r in range(0,100):
             for c in range(0, 100):
                 cell = self.data[r][c]
@@ -262,11 +313,18 @@ class MyMainWindow(QMainWindow):
                     cells = self.rooms.get(str(cell.color), [])
                     cells.append([r,c])
                     self.rooms[str(cell.color)] = cells
+                if cell.space_type == 'hall':
+                    self.halways[str(cell.location)] = 'hallway'
+                    
+    def set_known(self):
+        self.rooms_discovered.setText("%s/%s" % (len(self.rooms_known), len(self.rooms)))
+        self.hallway_discovered.setText("%s/%s" % (len(self.halls_known), len(self.halways)))
         
     def save_map(self, image):
         image.save(r'D:\Dev\Python\dun_gen\test.bmp')
         self.data = self.map_builder.data
         self.collect_rooms()
+        self.set_known()
         print 'done'
         
     def update_image(self, image):
