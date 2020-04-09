@@ -17,7 +17,7 @@ class MyMainWindow(QMainWindow):
         QMainWindow.__init__(self, parent)
         
         loadUi(r"%s\dun_gen.ui" % here, self)
-        self.current_location = [99,50]
+        self.current_location = [50,50]
         self.data = []
         self.shown = []
         self.rooms = {}
@@ -31,9 +31,6 @@ class MyMainWindow(QMainWindow):
         self.map_builder.finished.connect(self.save_map)
         
         self.doit.clicked.connect(self.gen_map)
-        self.north_entrance.clicked.connect(partial(self.add_to_map, "north"))
-        self.east_entrance.clicked.connect(partial(self.add_to_map, "east"))
-        self.west_entrance.clicked.connect(partial(self.add_to_map, "west"))
         
         self.move_north.clicked.connect(partial(self.move, 'north'))
         self.move_south.clicked.connect(partial(self.move, 'south'))
@@ -99,36 +96,23 @@ class MyMainWindow(QMainWindow):
             self.map.setPixmap(QPixmap(qim))
         
     def gen_map(self):
-        self.current_location = [99,50]
+        self.current_location = [50,50]
         self.data = []
         self.shown = []
         self.rooms = {}
         self.rooms_known = {}
-        self.halls_known = {str([99,50]):'known'}
+        self.halls_known = {str([50,50]):'known'}
         if self.map_builder.isRunning():
             self.map_builder.stop()
         self.map_builder.continue_chance = self.also_straight.value()
         self.map_builder.straight_hall_chance = self.no_change.value()
         self.map_builder.continue_pool = self.also_straight.maximum()
-        self.map_builder.start_entrance = 'south'
         self.map_builder.generate()
         self.known_image = self.map_builder.source_img.copy()
         self.draw = ImageDraw.Draw(self.known_image)
         self.operations.clear()
         self.map_builder.start()
-        self.color_cell(99,50)
-        self.redraw_self()
-        
-    def add_to_map(self, direction):
-        print 'adding %s entrance' % direction
-        if self.map_builder.isRunning():
-            self.map_builder.stop()
-        self.map_builder.continue_chance = self.also_straight.value()
-        self.map_builder.straight_hall_chance = self.no_change.value()
-        self.map_builder.continue_pool = self.also_straight.maximum()
-        self.map_builder.start_entrance = direction
-        self.map_builder.start()
-        
+                
     def redraw_self(self):
         temp_image = self.known_image.copy()
         draw = ImageDraw.Draw(temp_image)
@@ -194,6 +178,10 @@ class MyMainWindow(QMainWindow):
             self.color_cell(next_row,next_col)
             self.halls_known[str(next_item.location)] = 'known'
             self.set_known()
+            if direction in ['northwest','northeast','southwest','southeast']:
+                for sub_d in ['north','south','west','east']:
+                    self.look(next_row, next_col, sub_d)
+            #else:
             self.look(next_row, next_col, direction)   
             
     def door(self, row, column, direction, secret=False):
@@ -299,9 +287,22 @@ class MyMainWindow(QMainWindow):
                 print "Wall. You need a door."
                 return False
         self.current_location = [next_row, next_col]
+        print '@',self.current_location
         #if [next_row, next_col] not in self.shown:
         self.look_around()
         self.redraw_self()
+        if direction == 'north' and row < 50:
+            sb = self.wander.verticalScrollBar()
+            sb.setValue(sb.value() - 10)
+        elif direction == 'south' and row > 50:
+            sb = self.wander.verticalScrollBar()
+            sb.setValue(sb.value() + 10)
+        elif direction == 'east' and column > 50:
+            sb = self.wander.horizontalScrollBar()
+            sb.setValue(sb.value() + 10)
+        elif direction == 'west' and column < 50:
+            sb = self.wander.horizontalScrollBar()
+            sb.setValue(sb.value() - 10)
         
     def collect_rooms(self):
         self.rooms = {}
@@ -325,6 +326,9 @@ class MyMainWindow(QMainWindow):
         self.data = self.map_builder.data
         self.collect_rooms()
         self.set_known()
+        self.color_cell(50,50)
+        self.look_around()
+        self.redraw_self()
         print 'done'
         
     def update_image(self, image):
