@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>1285</width>
-    <height>940</height>
+    <width>1225</width>
+    <height>961</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -15,41 +15,26 @@
   </property>
   <widget class="QWidget" name="centralwidget">
    <layout class="QGridLayout" name="gridLayout_6">
-    <item row="3" column="1">
-     <widget class="QGroupBox" name="groupBox">
-      <property name="title">
-       <string>Move</string>
+    <item row="5" column="0" colspan="2">
+     <widget class="QProgressBar" name="progressBar">
+      <property name="maximumSize">
+       <size>
+        <width>16777215</width>
+        <height>6</height>
+       </size>
       </property>
-      <layout class="QGridLayout" name="gridLayout_5">
-       <item row="2" column="1">
-        <widget class="QPushButton" name="move_south">
-         <property name="text">
-          <string>South</string>
-         </property>
-        </widget>
-       </item>
-       <item row="0" column="1">
-        <widget class="QPushButton" name="move_north">
-         <property name="text">
-          <string>North</string>
-         </property>
-        </widget>
-       </item>
-       <item row="1" column="0">
-        <widget class="QPushButton" name="move_west">
-         <property name="text">
-          <string>West</string>
-         </property>
-        </widget>
-       </item>
-       <item row="1" column="2">
-        <widget class="QPushButton" name="move_east">
-         <property name="text">
-          <string>East</string>
-         </property>
-        </widget>
-       </item>
-      </layout>
+      <property name="minimum">
+       <number>0</number>
+      </property>
+      <property name="maximum">
+       <number>5000</number>
+      </property>
+      <property name="value">
+       <number>0</number>
+      </property>
+      <property name="textVisible">
+       <bool>false</bool>
+      </property>
      </widget>
     </item>
     <item row="0" column="0" rowspan="4">
@@ -72,41 +57,31 @@
             <rect>
              <x>0</x>
              <y>0</y>
-             <width>1096</width>
+             <width>1019</width>
              <height>1018</height>
             </rect>
            </property>
            <layout class="QGridLayout" name="gridLayout_2">
             <item row="0" column="0">
-             <widget class="QSplitter" name="splitter">
-              <property name="orientation">
-               <enum>Qt::Horizontal</enum>
+             <widget class="QLabel" name="map">
+              <property name="minimumSize">
+               <size>
+                <width>1000</width>
+                <height>1000</height>
+               </size>
               </property>
-              <widget class="QLabel" name="map">
-               <property name="minimumSize">
-                <size>
-                 <width>1000</width>
-                 <height>1000</height>
-                </size>
-               </property>
-               <property name="maximumSize">
-                <size>
-                 <width>1000</width>
-                 <height>1000</height>
-                </size>
-               </property>
-               <property name="styleSheet">
-                <string notr="true">background-color: rgb(0, 0, 0);</string>
-               </property>
-               <property name="text">
-                <string/>
-               </property>
-              </widget>
-              <widget class="QListWidget" name="operations">
-               <property name="styleSheet">
-                <string notr="true">background-color: rgb(0, 0, 0);</string>
-               </property>
-              </widget>
+              <property name="maximumSize">
+               <size>
+                <width>1000</width>
+                <height>1000</height>
+               </size>
+              </property>
+              <property name="styleSheet">
+               <string notr="true">background-color: rgb(0, 0, 0);</string>
+              </property>
+              <property name="text">
+               <string/>
+              </property>
              </widget>
             </item>
            </layout>
@@ -130,7 +105,7 @@
             <rect>
              <x>0</x>
              <y>0</y>
-             <width>1018</width>
+             <width>1019</width>
              <height>1018</height>
             </rect>
            </property>
@@ -166,62 +141,6 @@
      </widget>
     </item>
     <item row="4" column="0" colspan="2">
-     <layout class="QHBoxLayout" name="horizontalLayout">
-      <item>
-       <widget class="QLabel" name="branch_label">
-        <property name="text">
-         <string>corner is branch chance</string>
-        </property>
-       </widget>
-      </item>
-      <item>
-       <widget class="QSlider" name="also_straight">
-        <property name="minimum">
-         <number>1</number>
-        </property>
-        <property name="maximum">
-         <number>20</number>
-        </property>
-        <property name="value">
-         <number>12</number>
-        </property>
-        <property name="orientation">
-         <enum>Qt::Horizontal</enum>
-        </property>
-       </widget>
-      </item>
-      <item>
-       <widget class="QLineEdit" name="also_straight_value"/>
-      </item>
-      <item>
-       <widget class="QLabel" name="hallway_label">
-        <property name="text">
-         <string>vanilla hallway chance</string>
-        </property>
-       </widget>
-      </item>
-      <item>
-       <widget class="QSlider" name="no_change">
-        <property name="minimum">
-         <number>1</number>
-        </property>
-        <property name="maximum">
-         <number>30</number>
-        </property>
-        <property name="value">
-         <number>16</number>
-        </property>
-        <property name="orientation">
-         <enum>Qt::Horizontal</enum>
-        </property>
-       </widget>
-      </item>
-      <item>
-       <widget class="QLineEdit" name="no_change_value"/>
-      </item>
-     </layout>
-    </item>
-    <item row="5" column="0" colspan="2">
      <layout class="QHBoxLayout" name="horizontalLayout_2">
       <item>
        <widget class="QPushButton" name="doit">
@@ -232,10 +151,23 @@
       </item>
      </layout>
     </item>
+    <item row="2" column="1">
+     <spacer name="verticalSpacer">
+      <property name="orientation">
+       <enum>Qt::Vertical</enum>
+      </property>
+      <property name="sizeHint" stdset="0">
+       <size>
+        <width>20</width>
+        <height>40</height>
+       </size>
+      </property>
+     </spacer>
+    </item>
     <item row="1" column="1">
      <widget class="QGroupBox" name="groupBox_2">
       <property name="title">
-       <string>GroupBox</string>
+       <string>Discovery</string>
       </property>
       <layout class="QGridLayout" name="gridLayout_7">
        <item row="1" column="0">
@@ -268,19 +200,6 @@
        </item>
       </layout>
      </widget>
-    </item>
-    <item row="2" column="1">
-     <spacer name="verticalSpacer">
-      <property name="orientation">
-       <enum>Qt::Vertical</enum>
-      </property>
-      <property name="sizeHint" stdset="0">
-       <size>
-        <width>20</width>
-        <height>40</height>
-       </size>
-      </property>
-     </spacer>
     </item>
    </layout>
   </widget>

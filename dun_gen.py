@@ -25,37 +25,17 @@ class MyMainWindow(QMainWindow):
         self.rooms_known = {}
         self.halls_known = {}
         self.show_secrets = False
+        self.exit_door = ()
         
         self.map_builder = MapBuilderWorker(parent=self)
         self.map_builder.status.connect(self.update_image)
         self.map_builder.finished.connect(self.save_map)
         
         self.doit.clicked.connect(self.gen_map)
-        
-        self.move_north.clicked.connect(partial(self.move, 'north'))
-        self.move_south.clicked.connect(partial(self.move, 'south'))
-        self.move_west.clicked.connect(partial(self.move, 'west'))
-        self.move_east.clicked.connect(partial(self.move, 'east'))
-        
-        self.also_straight.valueChanged.connect(self.update_also_straight)
-        self.no_change.valueChanged.connect(self.update_no_change)
-        sel_model = self.operations.selectionModel()
-        sel_model.selectionChanged.connect(self.highlight_selection)
-        
-        self.update_also_straight()
-        self.update_no_change()
-        self.splitter.setSizes([1010, 200])
+                
         self.map_image = None
         self.known_image = None
-        
-        #hide tuners
-        self.branch_label.hide()
-        self.also_straight.hide()
-        self.also_straight_value.hide()
-        self.hallway_label.hide()
-        self.no_change.hide()
-        self.no_change_value.hide()
-        
+                
         self.installEventFilter(self)
 
     def eventFilter(self, object, event):
@@ -73,28 +53,7 @@ class MyMainWindow(QMainWindow):
                 print 'moving east'
                 self.move('east')
             return True
-        
-    def update_also_straight(self, *args):
-        self.also_straight_value.setText(str(self.also_straight.value()))
-        
-    def update_no_change(self, *args):
-        self.no_change_value.setText(str(self.no_change.value()))
-        
-    def highlight_selection(self, selection):
-        sel_row = selection.indexes()[0].row()
-        contents = self.operations.item(sel_row).text()
-        test = re.search('\[(.*),(.*)\].*', contents)
-        if test:
-            temp_image = self.map_image.copy()
-            draw = ImageDraw.Draw(temp_image)
-            font = ImageFont.truetype("arial.ttf", 20)
-            draw.text((int(test.groups()[1])*10-2, int(test.groups()[0])*10-2), 'O', font=font, fill='black')
-            font = ImageFont.truetype("arial.ttf", 18)
-            draw.text((int(test.groups()[1])*10, int(test.groups()[0])*10), 'X', font=font, fill='red')
-            data = temp_image.tobytes("raw","RGB")
-            qim = QImage(data, temp_image.size[0], temp_image.size[1], QImage.Format_RGB888)
-            self.map.setPixmap(QPixmap(qim))
-        
+                                            
     def gen_map(self):
         self.current_location = [50,50]
         self.data = []
@@ -104,13 +63,12 @@ class MyMainWindow(QMainWindow):
         self.halls_known = {str([50,50]):'known'}
         if self.map_builder.isRunning():
             self.map_builder.stop()
-        self.map_builder.continue_chance = self.also_straight.value()
-        self.map_builder.straight_hall_chance = self.no_change.value()
-        self.map_builder.continue_pool = self.also_straight.maximum()
+        self.map_builder.continue_chance = 12
+        self.map_builder.straight_hall_chance = 16
+        self.map_builder.continue_pool = 20
         self.map_builder.generate()
         self.known_image = self.map_builder.source_img.copy()
         self.draw = ImageDraw.Draw(self.known_image)
-        self.operations.clear()
         self.map_builder.start()
                 
     def redraw_self(self):
@@ -209,6 +167,8 @@ class MyMainWindow(QMainWindow):
         color = item.color
         irow = row*10
         icol = column*10
+        if item.space_type == 'room':
+            color = (160,160,160)
         self.draw.rectangle((icol, irow, icol+10, irow+10), fill=color, outline=outline)
         if item.space_type == 'hall':
             for door in item.doors:
@@ -274,7 +234,9 @@ class MyMainWindow(QMainWindow):
             next_col -= 1
         elif direction == 'east':
             next_col += 1
-        if next_row<=0 or next_row>=99 or next_col<=0 or next_col>=99:
+        if (next_row,next_col) == self.exit_door:
+            print "YOU EXIT THE DUNGEON!"
+        elif next_row<=0 or next_row>=99 or next_col<=0 or next_col>=99:
             print "There be dragons! Can't go that way!"
             return False
         next_item = self.data[next_row][next_col]
@@ -314,8 +276,10 @@ class MyMainWindow(QMainWindow):
                     cells = self.rooms.get(str(cell.color), [])
                     cells.append([r,c])
                     self.rooms[str(cell.color)] = cells
-                if cell.space_type == 'hall':
+                elif cell.space_type == 'hall':
                     self.halways[str(cell.location)] = 'hallway'
+                elif cell.space_type == 'exit':
+                    self.exit_door = (r,c)
                     
     def set_known(self):
         self.rooms_discovered.setText("%s/%s" % (len(self.rooms_known), len(self.rooms)))
@@ -323,6 +287,7 @@ class MyMainWindow(QMainWindow):
         
     def save_map(self, image):
         image.save(r'D:\Dev\Python\dun_gen\test.bmp')
+        self.update_image(image)
         self.data = self.map_builder.data
         self.collect_rooms()
         self.set_known()
