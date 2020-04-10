@@ -12,6 +12,21 @@ from PIL import Image, ImageDraw, ImageFont
 here = os.path.dirname(__file__)
 from dun_gen_builder import *
 
+class Node():
+    """A node class for A* Pathfinding"""
+
+    def __init__(self, parent=None, position=None):
+        self.parent = parent
+        self.position = position
+
+        self.g = 0
+        self.h = 0
+        self.f = 0
+
+    def __eq__(self, other):
+        return self.position == other.position
+
+
 class MyMainWindow(QMainWindow):
     def __init__(self, parent=None):
         QMainWindow.__init__(self, parent)
@@ -25,37 +40,22 @@ class MyMainWindow(QMainWindow):
         self.rooms_known = {}
         self.halls_known = {}
         self.show_secrets = False
+        self.exit_door = ()
         
         self.map_builder = MapBuilderWorker(parent=self)
         self.map_builder.status.connect(self.update_image)
         self.map_builder.finished.connect(self.save_map)
         
         self.doit.clicked.connect(self.gen_map)
+        self.cheat.clicked.connect(self.plot_course)
         
-        self.move_north.clicked.connect(partial(self.move, 'north'))
-        self.move_south.clicked.connect(partial(self.move, 'south'))
-        self.move_west.clicked.connect(partial(self.move, 'west'))
-        self.move_east.clicked.connect(partial(self.move, 'east'))
-        
-        self.also_straight.valueChanged.connect(self.update_also_straight)
-        self.no_change.valueChanged.connect(self.update_no_change)
         sel_model = self.operations.selectionModel()
         sel_model.selectionChanged.connect(self.highlight_selection)
         
-        self.update_also_straight()
-        self.update_no_change()
         self.splitter.setSizes([1010, 200])
         self.map_image = None
         self.known_image = None
-        
-        #hide tuners
-        self.branch_label.hide()
-        self.also_straight.hide()
-        self.also_straight_value.hide()
-        self.hallway_label.hide()
-        self.no_change.hide()
-        self.no_change_value.hide()
-        
+                
         self.installEventFilter(self)
 
     def eventFilter(self, object, event):
@@ -73,13 +73,18 @@ class MyMainWindow(QMainWindow):
                 print 'moving east'
                 self.move('east')
             return True
-        
-    def update_also_straight(self, *args):
-        self.also_straight_value.setText(str(self.also_straight.value()))
-        
-    def update_no_change(self, *args):
-        self.no_change_value.setText(str(self.no_change.value()))
-        
+            
+    def plot_course(self):
+        temp_image = self.map_image.copy()
+        draw = ImageDraw.Draw(temp_image)
+        font = ImageFont.truetype("arial.ttf", 12)
+        course = self.run_cheat(self.data, (50,50), self.exit_door)
+        for c in course:
+            draw.text((c[1]*10, c[0]*10), 'X', font=font, fill='red')
+        data = temp_image.tobytes("raw","RGB")
+        qim = QImage(data, temp_image.size[0], temp_image.size[1], QImage.Format_RGB888)
+        self.map.setPixmap(QPixmap(qim))
+                        
     def highlight_selection(self, selection):
         sel_row = selection.indexes()[0].row()
         contents = self.operations.item(sel_row).text()
@@ -104,9 +109,9 @@ class MyMainWindow(QMainWindow):
         self.halls_known = {str([50,50]):'known'}
         if self.map_builder.isRunning():
             self.map_builder.stop()
-        self.map_builder.continue_chance = self.also_straight.value()
-        self.map_builder.straight_hall_chance = self.no_change.value()
-        self.map_builder.continue_pool = self.also_straight.maximum()
+        self.map_builder.continue_chance = 12
+        self.map_builder.straight_hall_chance = 16
+        self.map_builder.continue_pool = 20
         self.map_builder.generate()
         self.known_image = self.map_builder.source_img.copy()
         self.draw = ImageDraw.Draw(self.known_image)
@@ -314,8 +319,10 @@ class MyMainWindow(QMainWindow):
                     cells = self.rooms.get(str(cell.color), [])
                     cells.append([r,c])
                     self.rooms[str(cell.color)] = cells
-                if cell.space_type == 'hall':
+                elif cell.space_type == 'hall':
                     self.halways[str(cell.location)] = 'hallway'
+                elif cell.space_type == 'exit':
+                    self.exit_door = (r,c)
                     
     def set_known(self):
         self.rooms_discovered.setText("%s/%s" % (len(self.rooms_known), len(self.rooms)))
@@ -323,6 +330,7 @@ class MyMainWindow(QMainWindow):
         
     def save_map(self, image):
         image.save(r'D:\Dev\Python\dun_gen\test.bmp')
+        self.update_image(image)
         self.data = self.map_builder.data
         self.collect_rooms()
         self.set_known()
@@ -336,6 +344,94 @@ class MyMainWindow(QMainWindow):
         data = image.tobytes("raw","RGB")
         qim = QImage(data, image.size[0], image.size[1], QImage.Format_RGB888)
         self.map.setPixmap(QPixmap(qim))
+        
+        
+    def run_cheat(self, maze, start, end):
+        """Returns a list of tuples as a path from the given start to the given end in the given maze"""
+
+        self.progressBar.setValue(0)
+        # Create start and end node
+        start_node = Node(None, start)
+        start_node.g = start_node.h = start_node.f = 0
+        end_node = Node(None, end)
+        end_node.g = end_node.h = end_node.f = 0
+
+        # Initialize both open and closed list
+        open_list = []
+        closed_list = []
+        iterations = 0
+
+        # Add the start node
+        open_list.append(start_node)
+        print 'starting cheat at',start_node.position,'seeking',end_node.position
+        # Loop until you find the end
+        while len(open_list) > 0:
+            iterations += 1
+            self.progressBar.setValue(iterations)
+            # Get the current node
+            current_node = open_list[0]
+            current_index = 0
+            for index, item in enumerate(open_list):
+                if item.f < current_node.f:
+                    current_node = item
+                    current_index = index
+
+            # Pop current off open list, add to closed list
+            open_list.pop(current_index)
+            closed_list.append(current_node)
+            #print 'currently @',current_node.position
+
+            # Found the goal
+            if current_node == end_node or iterations >= 5000:
+                path = []
+                current = current_node
+                while current is not None:
+                    path.append(current.position)
+                    current = current.parent
+                return path[::-1] # Return reversed path
+
+            # Generate children
+            children = []
+            for new_position in [(0, -1), (0, 1), (-1, 0), (1, 0), (-1, -1), (-1, 1), (1, -1), (1, 1)]: # Adjacent squares
+
+                # Get node position
+                node_position = (current_node.position[0] + new_position[0], current_node.position[1] + new_position[1])
+
+                # Make sure within range
+                if node_position[0] > (len(maze) - 1) or node_position[0] < 0 or node_position[1] > (len(maze[len(maze)-1]) -1) or node_position[1] < 0:
+                    continue
+
+                # Make sure walkable terrain
+                next_item = maze[node_position[0]][node_position[1]]
+                if not next_item.space_type:
+                    continue
+
+                # Create new node
+                new_node = Node(current_node, node_position)
+
+                # Append
+                children.append(new_node)
+
+            # Loop through children
+            for child in children:
+
+                # Child is on the closed list
+                for closed_child in closed_list:
+                    if child == closed_child:
+                        continue
+
+                # Create the f, g, and h values
+                child.g = current_node.g + 1
+                child.h = ((child.position[0] - end_node.position[0]) ** 2) + ((child.position[1] - end_node.position[1]) ** 2)
+                child.f = child.g + child.h
+
+                # Child is already in the open list
+                for open_node in open_list:
+                    if child == open_node and child.g > open_node.g:
+                        continue
+
+                # Add the child to the open list
+                open_list.append(child)
         
 def launch_it():
     app = QApplication([])
