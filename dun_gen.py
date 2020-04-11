@@ -98,26 +98,17 @@ class MyMainWindow(QMainWindow):
         color = item.color
         if item.space_type == 'room':
             room_cells = self.rooms.get(str(color), [])
+            self.border_room(room_cells)
+            if str(color) in self.rooms_known:
+                return
             for rc in room_cells:
                 r,c = rc
                 self.shown.append([r,c])
                 self.color_cell(r,c)
-            self.border_room(room_cells)
-            for rc in room_cells:
-                r,c = rc
-                item = self.data[r][c]
-                for door in item.doors:
-                    self.door(r, c, door)
-                is_near = False
-                if cur_row + 1 == r or cur_row - 1 == r or cur_row == r:
-                    if cur_col + 1 == c or cur_col - 1 == c or cur_col == c:
-                        is_near = True
-                for sd in item.secrets:
-                    if self.show_secrets or is_near:
-                        self.door(r, c, sd, secret=True)
             self.rooms_known[str(color)] = 'known'
             self.set_known()
             return
+        # hallway 
         next_row = row
         next_col = column
         if 'north' in direction:
@@ -133,8 +124,9 @@ class MyMainWindow(QMainWindow):
         next_item = self.data[next_row][next_col]
         if next_item.space_type and next_item.color == color:
             self.shown.append([next_row,next_col])
-            self.color_cell(next_row,next_col)
-            self.halls_known[str(next_item.location)] = 'known'
+            if str(next_item.location) not in self.halls_known:
+                self.halls_known[str(next_item.location)] = 'known'
+                self.color_cell(next_row,next_col)
             self.set_known()
             if direction in ['northwest','northeast','southwest','southeast']:
                 for sub_d in ['north','south','west','east']:
@@ -149,13 +141,13 @@ class MyMainWindow(QMainWindow):
         if secret:
             outline = 'red'
         if direction == 'east':
-            self.draw.rectangle((icol+8, irow+2, icol+12, irow+8), fill=(0,0,0), outline=outline)
+            self.draw.rectangle((icol+7, irow+2, icol+9, irow+8), fill=(0,0,0), outline=outline)
         if direction == 'west':
-            self.draw.rectangle((icol-2, irow+2, icol+2, irow+8), fill=(0,0,0), outline=outline)
+            self.draw.rectangle((icol+1, irow+2, icol+3, irow+8), fill=(0,0,0), outline=outline)
         if direction == 'north':
-            self.draw.rectangle((icol+2, irow-2, icol+8, irow+2), fill=(0,0,0), outline=outline)
+            self.draw.rectangle((icol+2, irow+1, icol+8, irow+3), fill=(0,0,0), outline=outline)
         if direction == 'south':
-            self.draw.rectangle((icol+2, irow+8, icol+8, irow+12), fill=(0,0,0), outline=outline)
+            self.draw.rectangle((icol+2, irow+7, icol+8, irow+9), fill=(0,0,0), outline=outline)
             
     def color_cell(self, row, column, outline='grey'):
         is_near = False
@@ -164,18 +156,29 @@ class MyMainWindow(QMainWindow):
             if cur_col + 1 == column or cur_col - 1 == column or cur_col == column:
                 is_near = True
         item = self.data[row][column]
+        current_item = self.data[cur_row][cur_col]
         color = item.color
         irow = row*10
         icol = column*10
         if item.space_type == 'room':
             color = (160,160,160)
-        self.draw.rectangle((icol, irow, icol+10, irow+10), fill=color, outline=outline)
-        if item.space_type == 'hall':
-            for door in item.doors:
-                self.door(row, column, door)
-            for sd in item.secrets:
-                if self.show_secrets or is_near:
-                    self.door(row, column, sd, secret=True)
+        if item.space_type == 'exit':
+            self.draw.rectangle((icol, irow, icol+10, irow+10), fill=(0,0,0), outline='yellow')
+            self.draw.rectangle((icol+2, irow+2, icol+8, irow+8), fill=(255,0,0), outline='green')
+            self.draw.rectangle((icol+4, irow+4, icol+6, irow+6), fill=(255,255,0), outline='blue')
+        else:
+            self.draw.rectangle((icol, irow, icol+10, irow+10), fill=color, outline=outline)
+        
+        if item.space_type != current_item.space_type:
+            return
+        for direction in ['north', 'south', 'east', 'west']:
+            value = getattr(item, direction)
+            if value:
+                if value == 'secret':
+                    if self.show_secrets or is_near:
+                        self.door(row, column, direction, secret=True)
+                else:
+                    self.door(row, column, direction)
             
     def border_room(self, room, outline='white'):
         r,c = room[0]
@@ -245,11 +248,11 @@ class MyMainWindow(QMainWindow):
             print "Empty space. Can't go that way."
             return False
         if not next_item.color == current_item.color:
-            if direction not in current_item.doors and direction not in current_item.secrets:
+            if not getattr(current_item, direction):
                 print "Wall. You need a door."
                 return False
         self.current_location = [next_row, next_col]
-        print '@',self.current_location
+        print next_item
         #if [next_row, next_col] not in self.shown:
         self.look_around()
         self.redraw_self()
