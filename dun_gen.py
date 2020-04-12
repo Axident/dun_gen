@@ -25,6 +25,7 @@ class MyMainWindow(QMainWindow):
         self.rooms_known = {}
         self.halls_known = {}
         self.show_secrets = False
+        self.secret_range = 1
         self.exit_door = ()
         
         self.map_builder = MapBuilderWorker(parent=self)
@@ -75,13 +76,35 @@ class MyMainWindow(QMainWindow):
         temp_image = self.known_image.copy()
         draw = ImageDraw.Draw(temp_image)
         row, column = self.current_location
-        font = ImageFont.truetype("arial.ttf", 16)
-        draw.text(((column*10)-2, (row*10)-2), 'O', font=font, fill='black')
-        font = ImageFont.truetype("arial.ttf", 14)
-        draw.text(((column*10), (row*10-2)), 'X', font=font, fill='red')
+        draw.ellipse([(column*10+2), (row*10+2), (column*10)+8, (row*10)+8], outline='black', fill=(5, 173, 235))
         data = temp_image.tobytes("raw","RGB")
         qim = QImage(data, temp_image.size[0], temp_image.size[1], QImage.Format_RGB888)
         self.map_masked.setPixmap(QPixmap(qim))
+        
+    def check_for_secrets(self):
+        is_near = False
+        cur_row, cur_col = self.current_location
+        item = self.data[cur_row][cur_col]
+        color = item.color
+        for direction in ['north','south','west','east','northwest','northeast','southwest','southeast']:
+            next_row = cur_row
+            next_col = cur_col
+            if 'north' in direction:
+                next_row -= 1
+            if 'south' in direction:
+                next_row += 1
+            if 'west' in direction:
+                next_col -= 1
+            if 'east' in direction:
+                next_col += 1
+            if next_row<=0 or next_row>=99 or next_col<=0 or next_col>=99:
+                continue
+            next_item = self.data[next_row][next_col]
+            if next_item.space_type and next_item.color == color:
+                for d in ['north', 'south', 'east', 'west']:
+                    value = getattr(next_item, d)
+                    if value and value == 'secret':
+                        self.door(next_row, next_col, d, secret=True)
         
     def look_around(self):
         row, column = self.current_location
@@ -91,6 +114,7 @@ class MyMainWindow(QMainWindow):
         self.color_cell(row, column)
         for direction in ['north','south','west','east','northwest','northeast','southwest','southeast']:
             self.look(row, column, direction)
+        self.check_for_secrets()
         
     def look(self, row, column, direction):
         cur_row, cur_col = self.current_location
@@ -119,10 +143,11 @@ class MyMainWindow(QMainWindow):
             next_col -= 1
         if 'east' in direction:
             next_col += 1
-        if next_row<=0 or next_row>=99 or next_col<=0 or next_col>=99:
-            return
+        if (next_row, next_col) != self.exit_door:
+            if next_row<=0 or next_row>=99 or next_col<=0 or next_col>=99:
+                return
         next_item = self.data[next_row][next_col]
-        if next_item.space_type and next_item.color == color:
+        if next_item.space_type and (next_item.color == color or next_item.space_type == 'exit'):
             self.shown.append([next_row,next_col])
             if str(next_item.location) not in self.halls_known:
                 self.halls_known[str(next_item.location)] = 'known'
@@ -150,12 +175,8 @@ class MyMainWindow(QMainWindow):
             self.draw.rectangle((icol+2, irow+7, icol+8, irow+9), fill=(0,0,0), outline=outline)
             
     def color_cell(self, row, column, outline='grey'):
-        is_near = False
-        cur_row, cur_col = self.current_location
-        if cur_row + 1 == row or cur_row - 1 == row or cur_row == row:
-            if cur_col + 1 == column or cur_col - 1 == column or cur_col == column:
-                is_near = True
         item = self.data[row][column]
+        cur_row,cur_col = self.current_location
         current_item = self.data[cur_row][cur_col]
         color = item.color
         irow = row*10
@@ -174,11 +195,10 @@ class MyMainWindow(QMainWindow):
         for direction in ['north', 'south', 'east', 'west']:
             value = getattr(item, direction)
             if value:
-                if value == 'secret':
-                    if self.show_secrets or is_near:
-                        self.door(row, column, direction, secret=True)
-                else:
+                if value == 'door':
                     self.door(row, column, direction)
+                elif self.show_secrets:
+                    self.door(row, column, direction, secret=True)
             
     def border_room(self, room, outline='white'):
         r,c = room[0]
