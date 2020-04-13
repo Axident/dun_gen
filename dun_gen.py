@@ -11,6 +11,7 @@ from PIL import Image, ImageDraw, ImageFont
 
 here = os.path.dirname(__file__)
 from dun_gen_builder import *
+from dun_gen_combat import *
 
 class MyMainWindow(QMainWindow):
     def __init__(self, parent=None):
@@ -18,8 +19,8 @@ class MyMainWindow(QMainWindow):
         
         loadUi(r"%s\dun_gen.ui" % here, self)
         self.current_location = [50,50]
+        self.current_direction = None
         self.data = []
-        self.shown = []
         self.rooms = {}
         self.halways = {}
         self.rooms_known = {}
@@ -28,9 +29,12 @@ class MyMainWindow(QMainWindow):
         self.secret_range = 1
         self.exit_door = ()
         
+        self.bullet_timer = BulletTimeWorker(self.data, parent=self)
+        self.bullet_timer.status.connect(self.update_projectiles)
         self.map_builder = MapBuilderWorker(parent=self)
         self.map_builder.status.connect(self.update_image)
         self.map_builder.finished.connect(self.save_map)
+        self.tabWidget.currentChanged.connect(self.toggle_generate)
         
         self.doit.clicked.connect(self.gen_map)
                 
@@ -53,12 +57,15 @@ class MyMainWindow(QMainWindow):
             if event.key() == Qt.Key_D:
                 print 'moving east'
                 self.move('east')
-            return True
+            if event.key() == Qt.Key_Space:
+                print 'firing %s' % self.current_direction
+                self.fire()
+            return True      
+        return False            
                                             
     def gen_map(self):
         self.current_location = [50,50]
         self.data = []
-        self.shown = []
         self.rooms = {}
         self.rooms_known = {}
         self.halls_known = {str([50,50]):'known'}
@@ -71,12 +78,40 @@ class MyMainWindow(QMainWindow):
         self.known_image = self.map_builder.source_img.copy()
         self.draw = ImageDraw.Draw(self.known_image)
         self.map_builder.start()
+        
+    def toggle_generate(self):
+        if self.tabWidget.currentIndex() == 1:
+            self.doit.setEnabled(False)
+        else:
+            self.doit.setEnabled(True)
+            
+    def fire(self):
+        current_row, current_column = self.current_location
+        current_cell = self.data[current_row][current_column]
+        self.bullet_timer.add(self.current_location, current_cell.color, self.current_direction)
+        if not self.bullet_timer.isRunning():            
+            self.bullet_timer.start()
                 
-    def redraw_self(self):
+    def redraw_self(self, projectiles=[]):
         temp_image = self.known_image.copy()
         draw = ImageDraw.Draw(temp_image)
         row, column = self.current_location
-        draw.ellipse([(column*10+2), (row*10+2), (column*10)+8, (row*10)+8], outline='black', fill=(5, 173, 235))
+        if self.current_direction == 'east':
+            draw.polygon([((column*10)+2, (row*10)+2), ((column*10)+2, (row*10)+8), ((column*10)+8, (row*10)+5)], outline='black', fill=(5, 173, 235))
+        elif self.current_direction == 'west':
+            draw.polygon([((column*10)+8, (row*10)+2), ((column*10)+8, (row*10)+8), ((column*10)+2, (row*10)+5)], outline='black', fill=(5, 173, 235))
+        elif self.current_direction == 'north':
+            draw.polygon([((column*10)+5, (row*10)+2), ((column*10)+2, (row*10)+8), ((column*10)+8, (row*10)+8)], outline='black', fill=(5, 173, 235))
+        elif self.current_direction == 'south':
+            draw.polygon([((column*10)+5, (row*10)+8), ((column*10)+2, (row*10)+2), ((column*10)+8, (row*10)+2)], outline='black', fill=(5, 173, 235))
+        else:
+            draw.ellipse([(column*10)+2, (row*10)+2, (column*10)+8, (row*10)+8], outline='black', fill=(5, 173, 235))
+            
+        if projectiles:
+            for p in projectiles:
+                row, column = p.location
+                draw.ellipse([(column*10)+2, (row*10)+2, (column*10)+8, (row*10)+8], outline='yellow', fill='red')
+
         data = temp_image.tobytes("raw","RGB")
         qim = QImage(data, temp_image.size[0], temp_image.size[1], QImage.Format_RGB888)
         self.map_masked.setPixmap(QPixmap(qim))
@@ -110,7 +145,6 @@ class MyMainWindow(QMainWindow):
         row, column = self.current_location
         item = self.data[row][column]
         #print item
-        self.shown.append([row, column])
         self.color_cell(row, column)
         for direction in ['north','south','west','east','northwest','northeast','southwest','southeast']:
             self.look(row, column, direction)
@@ -120,15 +154,14 @@ class MyMainWindow(QMainWindow):
         cur_row, cur_col = self.current_location
         item = self.data[row][column]
         color = item.color
-        if item.space_type == 'room':
-            room_cells = self.rooms.get(str(color), [])
+        if item.space_type == 'room': 
+            room_cells = self.rooms.get(str(color))  
             self.border_room(room_cells)
             if str(color) in self.rooms_known:
-                return
+                return  
             for rc in room_cells:
                 r,c = rc
-                self.shown.append([r,c])
-                self.color_cell(r,c)
+                self.color_cell(r,c)       
             self.rooms_known[str(color)] = 'known'
             self.set_known()
             return
@@ -148,7 +181,6 @@ class MyMainWindow(QMainWindow):
                 return
         next_item = self.data[next_row][next_col]
         if next_item.space_type and (next_item.color == color or next_item.space_type == 'exit'):
-            self.shown.append([next_row,next_col])
             if str(next_item.location) not in self.halls_known:
                 self.halls_known[str(next_item.location)] = 'known'
                 self.color_cell(next_row,next_col)
@@ -246,6 +278,7 @@ class MyMainWindow(QMainWindow):
                     self.draw.line((icol+10, irow, icol+10, irow+10), fill=outline, width=1)
         
     def move(self, direction):
+        self.current_direction = direction
         row, column = self.current_location
         next_row = row
         next_col = column
@@ -272,8 +305,7 @@ class MyMainWindow(QMainWindow):
                 print "Wall. You need a door."
                 return False
         self.current_location = [next_row, next_col]
-        print next_item
-        #if [next_row, next_col] not in self.shown:
+        #print next_item
         self.look_around()
         self.redraw_self()
         if direction == 'north' and row < 50:
@@ -317,13 +349,17 @@ class MyMainWindow(QMainWindow):
         self.color_cell(50,50)
         self.look_around()
         self.redraw_self()
-        print 'done'
+        self.bullet_timer.data = self.data
+        print 'jobs done'
         
     def update_image(self, image):
         self.map_image = image
         data = image.tobytes("raw","RGB")
         qim = QImage(data, image.size[0], image.size[1], QImage.Format_RGB888)
         self.map.setPixmap(QPixmap(qim))
+        
+    def update_projectiles(self, projectiles):
+        self.redraw_self(projectiles=projectiles)
         
 def launch_it():
     app = QApplication([])

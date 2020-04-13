@@ -14,7 +14,6 @@ class Cell(object):
         self.space_type = None
         self.name = None
         self.color = (0,0,0)
-        self.location = [None,None]
         self.location = location
         self.north = None
         self.south = None
