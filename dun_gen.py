@@ -29,8 +29,13 @@ class MyMainWindow(QMainWindow):
         self.secret_range = 1
         self.exit_door = ()
         
+        self.monsters = []
+        self.projectiles = []
+        
         self.bullet_timer = BulletTimeWorker(self.data, parent=self)
         self.bullet_timer.status.connect(self.update_projectiles)
+        self.monster_timer = WanderWorker(self.data, parent=self)
+        self.monster_timer.status.connect(self.update_monsters)
         self.map_builder = MapBuilderWorker(parent=self)
         self.map_builder.status.connect(self.update_image)
         self.map_builder.finished.connect(self.save_map)
@@ -85,6 +90,14 @@ class MyMainWindow(QMainWindow):
         else:
             self.doit.setEnabled(True)
             
+    def start_monsters(self):
+        self.monster_timer.beasts = []
+        self.monster_timer.add()
+        self.monster_timer.add()
+        self.monster_timer.add()
+        if not self.monster_timer.isRunning():            
+            self.monster_timer.start()
+            
     def fire(self):
         current_row, current_column = self.current_location
         current_cell = self.data[current_row][current_column]
@@ -92,7 +105,7 @@ class MyMainWindow(QMainWindow):
         if not self.bullet_timer.isRunning():            
             self.bullet_timer.start()
                 
-    def redraw_self(self, projectiles=[]):
+    def redraw_self(self):
         temp_image = self.known_image.copy()
         draw = ImageDraw.Draw(temp_image)
         row, column = self.current_location
@@ -107,10 +120,18 @@ class MyMainWindow(QMainWindow):
         else:
             draw.ellipse([(column*10)+2, (row*10)+2, (column*10)+8, (row*10)+8], outline='black', fill=(5, 173, 235))
             
-        if projectiles:
-            for p in projectiles:
+        if self.projectiles:
+            for p in self.projectiles:
                 row, column = p.location
                 draw.ellipse([(column*10)+2, (row*10)+2, (column*10)+8, (row*10)+8], outline='yellow', fill='red')
+                
+        if self.monsters:
+            for m in self.monsters:
+                #for p in m.current_path:
+                #    r, c = p
+                #    draw.ellipse([(c*10)+2, (r*10)+2, (c*10)+8, (r*10)+8], outline='green', fill='blue')
+                row, column = m.location
+                draw.ellipse([(column*10)+2, (row*10)+2, (column*10)+8, (row*10)+8], outline='green', fill='red')
 
         data = temp_image.tobytes("raw","RGB")
         qim = QImage(data, temp_image.size[0], temp_image.size[1], QImage.Format_RGB888)
@@ -350,6 +371,8 @@ class MyMainWindow(QMainWindow):
         self.look_around()
         self.redraw_self()
         self.bullet_timer.data = self.data
+        self.monster_timer.data = self.data
+        self.start_monsters()
         print 'jobs done'
         
     def update_image(self, image):
@@ -359,7 +382,13 @@ class MyMainWindow(QMainWindow):
         self.map.setPixmap(QPixmap(qim))
         
     def update_projectiles(self, projectiles):
-        self.redraw_self(projectiles=projectiles)
+        self.projectiles = projectiles
+        self.redraw_self()
+        
+    def update_monsters(self, monsters):
+        self.monsters = monsters
+        #print monsters[0]
+        self.redraw_self()
         
 def launch_it():
     app = QApplication([])
