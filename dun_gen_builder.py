@@ -118,94 +118,72 @@ class MapBuilderWorker(QThread):
             if d == 'east':
                 # from the center build east:
                 self.add_random_item(50, 52, 'east', space_type='hall')
-        #random exit:
-        rand_dir = random.randint(0,3)         
-        if rand_dir == 0:
-            print 'setting exit south'
-            row = 99
-            col = random.randint(1,98)
-            next_item = self.data[row][col]
-            nist = "%s" % next_item.space_type
-            self.color_cell(row, col, (0,0,0), 'exit', outline='yellow')
-            irow = row*10
-            icol = col*10
-            self.draw.rectangle((icol+2, irow+2, icol+8, irow+8), fill=(255,0,0), outline='green')
-            self.draw.rectangle((icol+4, irow+4, icol+6, irow+6), fill=(255,255,0), outline='blue')
-            print 'setting exit south @ (%d, %d)' % (row, col)
-            while nist in ['None', 'exit']:
-                row-=1
-                next_item = self.data[row][col]
-                nist = "%s" % next_item.space_type
-                if nist == 'None':
-                    self.color_cell(row, col, (200,200,200), 'hall', outline='grey')
-                else:
-                    print 'item type %s @ (%d,%d)' % (nist, row, col)
-            print 'door to exit @ (%d,%d)' % (row, col)
-            self.door(row, col, 'north', secret=True)
-        elif rand_dir == 1:
-            row = 0
-            col = random.randint(1,98)
-            next_item = self.data[row][col]
-            nist = "%s" % next_item.space_type
-            self.color_cell(row, col, (0,0,0), 'exit', outline='yellow')
-            irow = row*10
-            icol = col*10
-            self.draw.rectangle((icol+2, irow+2, icol+8, irow+8), fill=(255,0,0), outline='green')
-            self.draw.rectangle((icol+4, irow+4, icol+6, irow+6), fill=(255,255,0), outline='blue')
-            print 'setting exit north @ (%d, %d)' % (row, col)
-            while nist in ['None', 'exit']:
-                row+=1
-                next_item = self.data[row][col]
-                nist = "%s" % next_item.space_type
-                if nist == 'None':
-                    self.color_cell(row, col, (200,200,200), 'hall', outline='grey')
-                else:
-                    print 'item type %s @ (%d,%d)' % (nist, row, col)
-            print 'door to exit @ (%d,%d)' % (row, col)
-            self.door(row, col, 'south', secret=True)
-        elif rand_dir == 2:
-            row = random.randint(1,98)
-            col = 99
-            next_item = self.data[row][col]
-            nist = "%s" % next_item.space_type
-            self.color_cell(row, col, (0,0,0), 'exit', outline='yellow')
-            irow = row*10
-            icol = col*10
-            self.draw.rectangle((icol+2, irow+2, icol+8, irow+8), fill=(255,0,0), outline='green')
-            self.draw.rectangle((icol+4, irow+4, icol+6, irow+6), fill=(255,255,0), outline='blue')
-            print 'setting exit east @ (%d, %d)' % (row, col)
-            while nist in ['None', 'exit']:
-                col-=1
-                next_item = self.data[row][col]
-                nist = "%s" % next_item.space_type
-                if nist == 'None':
-                    self.color_cell(row, col, (200,200,200), 'hall', outline='grey')
-                else:
-                    print 'item type %s @ (%d,%d)' % (nist, row, col)
-            print 'door to exit @ (%d,%d)' % (row, col)
-            self.door(row, col, 'west', secret=True)
-        else:
-            row = random.randint(1,98)
-            col = 0
-            next_item = self.data[row][col]
-            nist = "%s" % next_item.space_type
-            self.color_cell(row, col, (0,0,0), 'exit', outline='yellow')
-            irow = row*10
-            icol = col*10
-            self.draw.rectangle((icol+2, irow+2, icol+8, irow+8), fill=(255,0,0), outline='green')
-            self.draw.rectangle((icol+4, irow+4, icol+6, irow+6), fill=(255,255,0), outline='blue')
-            print 'setting exit west @ (%d, %d)' % (row, col)
-            while nist in ['None', 'exit']:
-                col+=1
-                next_item = self.data[row][col]
-                nist = "%s" % next_item.space_type
-                if nist == 'None':
-                    self.color_cell(row, col, (200,200,200), 'hall', outline='grey')
-                else:
-                    print 'item type %s @ (%d,%d)' % (nist, row, col)
-            print 'door to exit @ (%d,%d)' % (row, col)
-            self.door(row, col, 'east', secret=True)
+        
+        #random exit must be surrounded by empty space:
+        possibilities = []
+        for r in range(1,98):
+            for c in range(1, 98):
+                if self.data[r-1][c-1].space_type is None:
+                    if self.data[r-1][c].space_type is None:
+                        if self.data[r-1][c+1].space_type is None:
+                            if self.data[r][c-1].space_type is None:
+                                if self.data[r][c+1].space_type is None:
+                                    if self.data[r+1][c-1].space_type is None:
+                                        if self.data[r+1][c].space_type is None:
+                                            if self.data[r+1][c+1].space_type is None:
+                                                possibilities.append([r,c])
+        
+        rand_spot = random.randint(0,len(possibilities)-1)   
+        row, col = possibilities[rand_spot]
+        headed = directions[random.randint(0,3)]
+        next_item = self.data[row][col]
+        nist = "%s" % next_item.space_type
+        self.color_cell(row, col, (0,0,0), 'exit', outline='yellow')
+        irow = row*10
+        icol = col*10
+        self.draw.rectangle((icol+2, irow+2, icol+8, irow+8), fill=(255,0,0), outline='green')
+        self.draw.rectangle((icol+4, irow+4, icol+6, irow+6), fill=(255,255,0), outline='blue')
+        print 'setting exit @ (%d, %d)' % (row, col)
+        cells_to_paint = self.create_exit_path(row, col, headed)
+        while cells_to_paint is None:
+            headed = directions[random.randint(0,3)]
+            cells_to_paint = self.create_exit_path(row, col, headed)
+        for ctp in cells_to_paint:
+            row, col = ctp
+            self.color_cell(row, col, (200,200,200), 'hall', outline='grey')
+        if headed == "north":
+            row-=1
+        elif headed == "south":
+            row+=1
+        elif headed == "east":
+            col+=1
+        elif headed == "west":
+            col-=1
+        print 'door to exit @ (%d,%d)' % (row, col)
+        self.door(row, col, headed, secret=True, auto_skip=False)
         self.finished.emit(self.source_img)
+        
+    def create_exit_path(self, row, col, headed):
+        cells_to_paint = []
+        next_item = self.data[row][col]
+        nist = "%s" % next_item.space_type
+        while nist in ['None', 'exit']:
+            if headed == "north":
+                row-=1
+            elif headed == "south":
+                row+=1
+            elif headed == "east":
+                col+=1
+            elif headed == "west":
+                col-=1
+            if row<=0 or row>=99 or col<=0 or col>=99:
+                return None
+            next_item = self.data[row][col]
+            nist = "%s" % next_item.space_type
+            if nist == 'None':
+                cells_to_paint.append([row,col])
+        return cells_to_paint
+        
                 
     def color_cell(self, row, column, color, space_type, outline='grey'):
         nw = self.data[row][column]
@@ -261,7 +239,7 @@ class MapBuilderWorker(QThread):
                     self.draw.line((icol+10, irow, icol+10, irow+10), fill=outline, width=1)
         self.room_count+=1
         
-    def door(self, row, column, direction, secret=False, other_side=False):
+    def door(self, row, column, direction, secret=False, other_side=False, auto_skip=True):
         cur_item = self.data[row][column]
         cur_color = cur_item.color
         last_row = row
@@ -280,7 +258,7 @@ class MapBuilderWorker(QThread):
             last_col -= 1
         last_item = self.data[last_row][last_col]
         last_color = last_item.color
-        if cur_color == last_color:
+        if cur_color == last_color and auto_skip:
             print 'skipping unnecessary %s door @ %d,%d' % (direction, row, column)
             return
         irow = row*10

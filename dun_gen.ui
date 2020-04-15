@@ -42,7 +42,7 @@
       <property name="currentIndex">
        <number>0</number>
       </property>
-      <widget class="QWidget" name="tab">
+      <widget class="QWidget" name="Map">
        <attribute name="title">
         <string>Map</string>
        </attribute>
@@ -56,7 +56,7 @@
            <property name="geometry">
             <rect>
              <x>0</x>
-             <y>0</y>
+             <y>-164</y>
              <width>1061</width>
              <height>1018</height>
             </rect>
@@ -105,7 +105,7 @@
             <rect>
              <x>0</x>
              <y>0</y>
-             <width>1019</width>
+             <width>1061</width>
              <height>1018</height>
             </rect>
            </property>
@@ -170,17 +170,17 @@
        <string>Discovery</string>
       </property>
       <layout class="QGridLayout" name="gridLayout_7">
-       <item row="1" column="0">
-        <widget class="QLabel" name="label_2">
-         <property name="text">
-          <string>Hallway Discovered:</string>
-         </property>
-        </widget>
-       </item>
        <item row="0" column="0">
         <widget class="QLabel" name="label">
          <property name="text">
           <string>Rooms Discovered:</string>
+         </property>
+        </widget>
+       </item>
+       <item row="1" column="0">
+        <widget class="QLabel" name="label_2">
+         <property name="text">
+          <string>Hallway Discovered:</string>
          </property>
         </widget>
        </item>
@@ -193,6 +193,20 @@
        </item>
        <item row="1" column="1">
         <widget class="QLabel" name="hallway_discovered">
+         <property name="text">
+          <string>0/0</string>
+         </property>
+        </widget>
+       </item>
+       <item row="2" column="0">
+        <widget class="QLabel" name="label_3">
+         <property name="text">
+          <string>Monsters Killed:</string>
+         </property>
+        </widget>
+       </item>
+       <item row="2" column="1">
+        <widget class="QLabel" name="total_kills">
          <property name="text">
           <string>0/0</string>
          </property>

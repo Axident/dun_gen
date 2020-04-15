@@ -25,12 +25,16 @@ class MyMainWindow(QMainWindow):
         self.halways = {}
         self.rooms_known = {}
         self.halls_known = {}
+        self.cells_known = []
         self.show_secrets = False
         self.secret_range = 1
         self.exit_door = ()
         
+        self.kills = 0
         self.monsters = []
         self.projectiles = []
+        self.current_visible = []
+        self.alive = True
         
         self.bullet_timer = BulletTimeWorker(self.data, parent=self)
         self.bullet_timer.status.connect(self.update_projectiles)
@@ -50,6 +54,8 @@ class MyMainWindow(QMainWindow):
 
     def eventFilter(self, object, event):
         if event.type() == QEvent.Type.KeyPress:
+            if not self.alive:
+                return False
             if event.key() == Qt.Key_W:
                 print 'moving north'
                 self.move('north')
@@ -65,13 +71,27 @@ class MyMainWindow(QMainWindow):
             if event.key() == Qt.Key_Space:
                 print 'firing %s' % self.current_direction
                 self.fire()
+            if event.key() == Qt.Key_N:
+                print 'generating new map'
+                self.gen_map()
             return True      
-        return False            
+        return False      
+        
+    def closeEvent(self, event):
+        if self.map_builder.isRunning():            
+            self.map_builder.stop()
+        if self.monster_timer.isRunning():            
+            self.monster_timer.stop()
+        if self.bullet_timer.isRunning():            
+            self.bullet_timer.stop()
                                             
     def gen_map(self):
+        self.alive = True
         self.current_location = [50,50]
         self.data = []
         self.rooms = {}
+        self.kills = 0
+        self.cells_known = []
         self.rooms_known = {}
         self.halls_known = {str([50,50]):'known'}
         if self.map_builder.isRunning():
@@ -91,10 +111,11 @@ class MyMainWindow(QMainWindow):
             self.doit.setEnabled(True)
             
     def start_monsters(self):
+        if self.monster_timer.isRunning():         
+            self.monster_timer.stop() 
         self.monster_timer.beasts = []
-        self.monster_timer.add()
-        self.monster_timer.add()
-        self.monster_timer.add()
+        for m in range(0,10):
+            self.monster_timer.add()
         if not self.monster_timer.isRunning():            
             self.monster_timer.start()
             
@@ -107,8 +128,12 @@ class MyMainWindow(QMainWindow):
                 
     def redraw_self(self):
         temp_image = self.known_image.copy()
+        #cheater mode
+        #temp_image = self.map_image.copy()
         draw = ImageDraw.Draw(temp_image)
         row, column = self.current_location
+        if not self.alive:
+            draw.ellipse([(column*10)+2, (row*10)+2, (column*10)+8, (row*10)+8], outline='red', fill='red')
         if self.current_direction == 'east':
             draw.polygon([((column*10)+2, (row*10)+2), ((column*10)+2, (row*10)+8), ((column*10)+8, (row*10)+5)], outline='black', fill=(5, 173, 235))
         elif self.current_direction == 'west':
@@ -122,16 +147,50 @@ class MyMainWindow(QMainWindow):
             
         if self.projectiles:
             for p in self.projectiles:
+                if not p.active:
+                    return
                 row, column = p.location
                 draw.ellipse([(column*10)+2, (row*10)+2, (column*10)+8, (row*10)+8], outline='yellow', fill='red')
+                for m in self.monsters:
+                    if m.alive:
+                        if m.location == p.location:
+                            print "YOU KILLED A MONSTER!"
+                            m.alive = False
+                            p.active = False
+                            self.kills+=1
+                            self.set_known()
                 
         if self.monsters:
+            debug = False
             for m in self.monsters:
+                #pathing debug
                 #for p in m.current_path:
                 #    r, c = p
                 #    draw.ellipse([(c*10)+2, (r*10)+2, (c*10)+8, (r*10)+8], outline='green', fill='blue')
                 row, column = m.location
-                draw.ellipse([(column*10)+2, (row*10)+2, (column*10)+8, (row*10)+8], outline='green', fill='red')
+                if m.location == self.current_location:
+                    if m.alive:
+                        print "YOU DIED!"
+                        self.alive = False
+                    elif not m.looted:
+                        m.looted = True
+                        for cell in m.known:
+                            if cell not in self.cells_known:
+                                row, column = cell
+                                self.color_cell(row, column, ghost=True)
+                            
+                if debug or [row,column] in self.current_visible:
+                    if m.alive:
+                        draw.ellipse([(column*10)+2, (row*10)+2, (column*10)+8, (row*10)+8], outline='green', fill='red')
+                    else:
+                        draw.ellipse([(column*10)+2, (row*10)+2, (column*10)+8, (row*10)+8], outline='red', fill='black')
+
+        for cv in self.current_visible:
+            row, column = cv
+            irow = row*10
+            icol = column*10
+            draw.rectangle((icol, irow, icol+10, irow+10), fill=None, outline='yellow')
+
 
         data = temp_image.tobytes("raw","RGB")
         qim = QImage(data, temp_image.size[0], temp_image.size[1], QImage.Format_RGB888)
@@ -167,6 +226,7 @@ class MyMainWindow(QMainWindow):
         item = self.data[row][column]
         #print item
         self.color_cell(row, column)
+        self.current_visible = []
         for direction in ['north','south','west','east','northwest','northeast','southwest','southeast']:
             self.look(row, column, direction)
         self.check_for_secrets()
@@ -177,12 +237,15 @@ class MyMainWindow(QMainWindow):
         color = item.color
         if item.space_type == 'room': 
             room_cells = self.rooms.get(str(color))  
+            self.current_visible += room_cells
             self.border_room(room_cells)
             if str(color) in self.rooms_known:
                 return  
             for rc in room_cells:
                 r,c = rc
-                self.color_cell(r,c)       
+                self.color_cell(r,c)    
+                if [r,c] not in self.cells_known:
+                    self.cells_known.append([r,c])
             self.rooms_known[str(color)] = 'known'
             self.set_known()
             return
@@ -205,6 +268,9 @@ class MyMainWindow(QMainWindow):
             if str(next_item.location) not in self.halls_known:
                 self.halls_known[str(next_item.location)] = 'known'
                 self.color_cell(next_row,next_col)
+                if [next_row,next_col] not in self.cells_known:
+                    self.cells_known.append([next_row,next_col])
+            self.current_visible += [[next_row,next_col]]
             self.set_known()
             if direction in ['northwest','northeast','southwest','southeast']:
                 for sub_d in ['north','south','west','east']:
@@ -227,7 +293,7 @@ class MyMainWindow(QMainWindow):
         if direction == 'south':
             self.draw.rectangle((icol+2, irow+7, icol+8, irow+9), fill=(0,0,0), outline=outline)
             
-    def color_cell(self, row, column, outline='grey'):
+    def color_cell(self, row, column, outline='grey', ghost=False):
         item = self.data[row][column]
         cur_row,cur_col = self.current_location
         current_item = self.data[cur_row][cur_col]
@@ -240,10 +306,12 @@ class MyMainWindow(QMainWindow):
             self.draw.rectangle((icol, irow, icol+10, irow+10), fill=(0,0,0), outline='yellow')
             self.draw.rectangle((icol+2, irow+2, icol+8, irow+8), fill=(255,0,0), outline='green')
             self.draw.rectangle((icol+4, irow+4, icol+6, irow+6), fill=(255,255,0), outline='blue')
+        elif ghost:
+            self.draw.rectangle((icol, irow, icol+10, irow+10), fill=(20,20,20), outline=(30,30,30))
         else:
             self.draw.rectangle((icol, irow, icol+10, irow+10), fill=color, outline=outline)
         
-        if item.space_type != current_item.space_type:
+        if item.space_type != current_item.space_type or ghost:
             return
         for direction in ['north', 'south', 'east', 'west']:
             value = getattr(item, direction)
@@ -360,6 +428,7 @@ class MyMainWindow(QMainWindow):
     def set_known(self):
         self.rooms_discovered.setText("%s/%s" % (len(self.rooms_known), len(self.rooms)))
         self.hallway_discovered.setText("%s/%s" % (len(self.halls_known), len(self.halways)))
+        self.total_kills.setText("%s/%s" % (self.kills, len(self.monsters)))
         
     def save_map(self, image):
         image.save(r'D:\Dev\Python\dun_gen\test.bmp')

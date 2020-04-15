@@ -7,7 +7,7 @@ class Projectile(object):
     def __init__(self, location, tile_color, direction):
         self.direction = direction
         self.tile_color = tile_color
-        #self.color = (0,0,0)
+        self.active = True
         self.location = location
         
     def move(self):
@@ -65,6 +65,10 @@ class Monster(object):
         self.current_path = []
         self.color = (200,200,200)
         self.alive = True
+        self.prey_location = [50,50]
+        self.hunter_path = None
+        self.known = []
+        self.looted = False
         
     def __str__(self):
         return 'beast @ %s direction: %s, headed_to: %s' % (self.location, self.direction, self.desired_location)
@@ -80,33 +84,39 @@ class Monster(object):
         self.current_space_type = halls[i].space_type
         return halls[i].location
         
-    def move(self):
+    def move(self, prey_location):
+        if self.location not in self.known:
+            self.known.append(self.location)
+        self.prey_location = prey_location
         next_row, next_col = self.location
         if len(self.current_path) == 0:
             #print "beast reached goal"
-            directions = []
-            item = self.data[next_row][next_col]
-            for d in ['north', 'south', 'east', 'west']:
-                value = getattr(item, d)
-                if value:
-                    directions.append(d)
-            if directions and random.randint(0,1):
-                i = 0
-                if len(directions)>1:
-                    i = random.randint(0, len(directions)-1)
-                direction = directions[i]
-                if direction == 'north':
-                    next_row -= 1
-                elif direction == 'south':
-                    next_row += 1
-                elif direction == 'west':
-                    next_col -= 1
-                elif direction == 'east':
-                    next_col += 1
-                self.desired_location = [next_row, next_col]
-                self.current_path = [[next_row, next_col]]
-            else:
-                self.new_desired_location()
+            self.hunter_path = None
+            self.new_desired_location()
+            if not self.hunter_path:
+                # check for doors
+                directions = []
+                item = self.data[next_row][next_col]
+                for d in ['north', 'south', 'east', 'west']:
+                    value = getattr(item, d)
+                    if value:
+                        directions.append(d)
+                # if there's a door, consider using it
+                if directions and random.randint(0,1):
+                    i = 0
+                    if len(directions)>1:
+                        i = random.randint(0, len(directions)-1)
+                    direction = directions[i]
+                    if direction == 'north':
+                        next_row -= 1
+                    elif direction == 'south':
+                        next_row += 1
+                    elif direction == 'west':
+                        next_col -= 1
+                    elif direction == 'east':
+                        next_col += 1
+                    self.desired_location = [next_row, next_col]
+                    self.current_path = [[next_row, next_col]]
         cur_row, cur_col = self.location
         path_row, path_col = self.current_path.pop(0)
         if path_row < cur_row:
@@ -124,12 +134,17 @@ class Monster(object):
             
     def new_desired_location(self):
         #print 'setting new desired location'
+        self.hunter_path = None
         desired_locations = set()
         row, column = self.location
         item = self.data[row][column]
         paths = []
         for direction in ['north','south','west','east']:
             path = self.look(row, column, direction, path = [[row, column]])
+            if self.hunter_path:
+                self.current_path = self.hunter_path
+                self.desired_location = self.current_path[-1]
+                return
             paths.append(path)
             if len(path) > 2:
                 for cell in range(2,len(path)):
@@ -138,6 +153,11 @@ class Monster(object):
                     if direction in ['north', 'south']:
                         for sub_d in ['east', 'west']:
                             test = self.look(b_row, b_col, sub_d, path=[])
+                            if self.hunter_path:
+                                self.hunter_path = branch + test  
+                                self.current_path = self.hunter_path
+                                self.desired_location = self.current_path[-1]
+                                return
                             if len(test):
                                 r, c = test[-1]
                                 last_item = self.data[r][c]
@@ -148,13 +168,18 @@ class Monster(object):
                     if direction in ['east', 'west']:
                         for sub_d in ['north', 'south']:
                             test = self.look(b_row, b_col, sub_d, path=[])
+                            if self.hunter_path:
+                                self.hunter_path = branch + test  
+                                self.current_path = self.hunter_path
+                                self.desired_location = self.current_path[-1]
+                                return
                             if len(test):
                                 r, c = test[-1]
                                 last_item = self.data[r][c]
                                 for d in ['north', 'south', 'east', 'west']:
                                     if getattr(last_item, d):
                                         test = branch + test
-                                        paths.append(test)
+                                        paths.append(test)                
         i = 0
         if len(paths)>1:
             i = random.randint(0, len(paths)-1)
@@ -178,6 +203,10 @@ class Monster(object):
         next_item = self.data[next_row][next_col]
         if next_item.color == self.color:
             path.append([next_row, next_col])
+            if [next_row, next_col] == self.prey_location:
+                print "I SEE YOU!"
+                self.hunter_path = path
+                return path
             for d in ['north', 'south', 'east', 'west']:
                 if getattr(next_item, d):
                     return path
@@ -199,15 +228,15 @@ class WanderWorker(QThread):
         self.beasts.append(monster)
         
     def run(self):
+        alive_count = len(self.beasts)
         while len(self.beasts):
-            time.sleep(.5)
-            new_beasts = []
+            time.sleep(.25)
+            alive_count = 0
             for beast in self.beasts:
-                beast.move()
-                r,c = beast.location
                 if beast.alive:
-                    new_beasts.append(beast)
-            self.beasts = new_beasts
+                    beast.move(self.parent.current_location)
+                    r,c = beast.location
+                    alive_count+=1
             self.status.emit(self.beasts)
         self.finished.emit(None)
         
