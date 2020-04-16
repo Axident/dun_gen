@@ -265,7 +265,7 @@ class MapBuilderWorker(QThread):
         icol = column*10
         outline = (0,0,255)
         if secret:
-            outline = 'red'
+            outline = (150,0,150)
             setattr(cur_item, opposite, 'secret')
             setattr(last_item, direction, 'secret')
         else:

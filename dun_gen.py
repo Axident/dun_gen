@@ -18,6 +18,8 @@ class MyMainWindow(QMainWindow):
         QMainWindow.__init__(self, parent)
         
         loadUi(r"%s\dun_gen.ui" % here, self)
+        self.map_w = 1000
+        self.map_h = 1000
         self.current_location = [50,50]
         self.current_direction = None
         self.data = []
@@ -54,26 +56,27 @@ class MyMainWindow(QMainWindow):
 
     def eventFilter(self, object, event):
         if event.type() == QEvent.Type.KeyPress:
-            if not self.alive:
-                return False
-            if event.key() == Qt.Key_W:
-                print 'moving north'
-                self.move('north')
-            if event.key() == Qt.Key_A:
-                print 'moving west'
-                self.move('west')
-            if event.key() == Qt.Key_S:
-                print 'moving south'
-                self.move('south')
-            if event.key() == Qt.Key_D:
-                print 'moving east'
-                self.move('east')
-            if event.key() == Qt.Key_Space:
-                print 'firing %s' % self.current_direction
-                self.fire()
             if event.key() == Qt.Key_N:
                 print 'generating new map'
                 self.gen_map()
+                return True
+            if not self.alive:
+                return False
+            if event.key() == Qt.Key_W:
+                #print 'moving north'
+                self.move('north')
+            if event.key() == Qt.Key_A:
+                #print 'moving west'
+                self.move('west')
+            if event.key() == Qt.Key_S:
+                #print 'moving south'
+                self.move('south')
+            if event.key() == Qt.Key_D:
+                #print 'moving east'
+                self.move('east')
+            if event.key() == Qt.Key_Space:
+                #print 'firing %s' % self.current_direction
+                self.fire()
             return True      
         return False      
         
@@ -86,6 +89,8 @@ class MyMainWindow(QMainWindow):
             self.bullet_timer.stop()
                                             
     def gen_map(self):
+        self.map_w = self.map_masked.width()
+        self.map_h = self.map_masked.height()
         self.alive = True
         self.current_location = [50,50]
         self.data = []
@@ -106,6 +111,8 @@ class MyMainWindow(QMainWindow):
         
     def toggle_generate(self):
         if self.tabWidget.currentIndex() == 1:
+            self.map_w = self.map_masked.width()
+            self.map_h = self.map_masked.height()
             self.doit.setEnabled(False)
         else:
             self.doit.setEnabled(True)
@@ -191,10 +198,12 @@ class MyMainWindow(QMainWindow):
             icol = column*10
             draw.rectangle((icol, irow, icol+10, irow+10), fill=None, outline='yellow')
 
-
-        data = temp_image.tobytes("raw","RGB")
-        qim = QImage(data, temp_image.size[0], temp_image.size[1], QImage.Format_RGB888)
-        self.map_masked.setPixmap(QPixmap(qim))
+        row, column = self.current_location
+        cropped = temp_image.crop([(column*10)-250, (row*10)-250, (column*10)+250, (row*10)+250])
+        #resized = cropped.resize((self.map_w,self.map_h))
+        bytes = cropped.tobytes("raw","RGB")
+        qim = QImage(bytes, cropped.size[0], cropped.size[1], QImage.Format_RGB888)
+        self.map_masked.setPixmap(QPixmap(qim).scaled(QSize(self.map_w,self.map_h)))
         
     def check_for_secrets(self):
         is_near = False
@@ -283,7 +292,7 @@ class MyMainWindow(QMainWindow):
         icol = column*10
         outline = (0,0,255)
         if secret:
-            outline = 'red'
+            outline = (150,0,150)
         if direction == 'east':
             self.draw.rectangle((icol+7, irow+2, icol+9, irow+8), fill=(0,0,0), outline=outline)
         if direction == 'west':
@@ -397,18 +406,6 @@ class MyMainWindow(QMainWindow):
         #print next_item
         self.look_around()
         self.redraw_self()
-        if direction == 'north' and row < 50:
-            sb = self.wander.verticalScrollBar()
-            sb.setValue(sb.value() - 10)
-        elif direction == 'south' and row > 50:
-            sb = self.wander.verticalScrollBar()
-            sb.setValue(sb.value() + 10)
-        elif direction == 'east' and column > 50:
-            sb = self.wander.horizontalScrollBar()
-            sb.setValue(sb.value() + 10)
-        elif direction == 'west' and column < 50:
-            sb = self.wander.horizontalScrollBar()
-            sb.setValue(sb.value() - 10)
         
     def collect_rooms(self):
         self.rooms = {}
