@@ -117,6 +117,9 @@ class Monster(object):
                         next_col += 1
                     self.desired_location = [next_row, next_col]
                     self.current_path = [[next_row, next_col]]
+            else:
+                self.current_path = self.direct_hunter_path()
+            
         cur_row, cur_col = self.location
         path_row, path_col = self.current_path.pop(0)
         if path_row < cur_row:
@@ -131,6 +134,69 @@ class Monster(object):
         item = self.data[path_row][path_col]
         self.current_space_type = item.space_type
         self.color = item.color
+        
+    def direct_hunter_path(self):
+        start = self.hunter_path[0]
+        sr, sc = start
+        start_cell = self.data[sr][sc]
+        if start_cell.space_type == 'hall':
+            return self.hunter_path
+        end = self.hunter_path[-1]
+        er, ec = end
+        if sr == er:
+            return self.hunter_path
+        elif sc == ec:
+            return self.hunter_path
+        new_path = [[sr,sc]]
+        if sr > er and sc > ec:
+            #northwest
+            while sr > er and sc > ec:
+                sr -= 1
+                sc -= 1
+                new_path.append([sr,sc])
+            while [sr, sc] != end:
+                if sr == er:
+                    sc-=1
+                elif sc == ec:
+                    sr-=1
+                new_path.append([sr,sc])
+        elif sr > er and sc < ec:
+            #northeast
+            while sr > er and sc < ec:
+                sr -= 1
+                sc += 1
+                new_path.append([sr,sc])
+            while [sr, sc] != end:
+                if sr == er:
+                    sc+=1
+                elif sc == ec:
+                    sr-=1
+                new_path.append([sr,sc])
+        elif sr < er and sc < ec:
+            #southeast
+            while sr < er and sc < ec:
+                sr += 1
+                sc += 1
+                new_path.append([sr,sc])
+            while [sr, sc] != end:
+                if sr == er:
+                    sc+=1
+                elif sc == ec:
+                    sr+=1
+                new_path.append([sr,sc])
+        elif sr < er and sc > ec:
+            #southwest
+            while sr < er and sc > ec:
+                sr += 1
+                sc -= 1
+                new_path.append([sr,sc])
+            while [sr, sc] != end:
+                if sr == er:
+                    sc-=1
+                elif sc == ec:
+                    sr+=1
+                new_path.append([sr,sc])
+        return new_path
             
     def new_desired_location(self):
         #print 'setting new desired location'

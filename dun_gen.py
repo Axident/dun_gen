@@ -48,10 +48,12 @@ class MyMainWindow(QMainWindow):
         self.tabWidget.currentChanged.connect(self.toggle_generate)
         
         self.doit.clicked.connect(self.gen_map)
+        self.fireball.clicked.connect(self.fire)
                 
         self.map_image = None
         self.known_image = None
                 
+        self.toggle_generate()
         self.installEventFilter(self)
 
     def eventFilter(self, object, event):
@@ -134,9 +136,10 @@ class MyMainWindow(QMainWindow):
             self.bullet_timer.start()
                 
     def redraw_self(self):
-        temp_image = self.known_image.copy()
-        #cheater mode
-        #temp_image = self.map_image.copy()
+        if self.cheat_map.isChecked():
+            temp_image = self.map_image.copy()
+        else:
+            temp_image = self.known_image.copy()
         draw = ImageDraw.Draw(temp_image)
         row, column = self.current_location
         if not self.alive:
@@ -168,12 +171,11 @@ class MyMainWindow(QMainWindow):
                             self.set_known()
                 
         if self.monsters:
-            debug = False
             for m in self.monsters:
-                #pathing debug
-                #for p in m.current_path:
-                #    r, c = p
-                #    draw.ellipse([(c*10)+2, (r*10)+2, (c*10)+8, (r*10)+8], outline='green', fill='blue')
+                if self.cheat_monster_paths.isChecked():
+                    for p in m.current_path:
+                        r, c = p
+                        draw.ellipse([(c*10)+2, (r*10)+2, (c*10)+8, (r*10)+8], outline='green', fill='blue')
                 row, column = m.location
                 if m.location == self.current_location:
                     if m.alive:
@@ -186,7 +188,7 @@ class MyMainWindow(QMainWindow):
                                 row, column = cell
                                 self.color_cell(row, column, ghost=True)
                             
-                if debug or [row,column] in self.current_visible:
+                if self.cheat_monsters.isChecked() or [row,column] in self.current_visible:
                     if m.alive:
                         draw.ellipse([(column*10)+2, (row*10)+2, (column*10)+8, (row*10)+8], outline='green', fill='red')
                     else:
