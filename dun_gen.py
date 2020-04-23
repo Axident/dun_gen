@@ -37,6 +37,7 @@ class MyMainWindow(QMainWindow):
         self.projectiles = []
         self.current_visible = []
         self.alive = True
+        self.paused = True
         
         self.bullet_timer = BulletTimeWorker(self.data, parent=self)
         self.bullet_timer.status.connect(self.update_projectiles)
@@ -48,7 +49,6 @@ class MyMainWindow(QMainWindow):
         self.tabWidget.currentChanged.connect(self.toggle_generate)
         
         self.doit.clicked.connect(self.gen_map)
-        self.fireball.clicked.connect(self.fire)
                 
         self.map_image = None
         self.known_image = None
@@ -76,6 +76,9 @@ class MyMainWindow(QMainWindow):
             if event.key() == Qt.Key_D:
                 #print 'moving east'
                 self.move('east')
+            if event.key() == Qt.Key_P:
+                #print 'moving east'
+                self.pause()
             if event.key() == Qt.Key_Space:
                 #print 'firing %s' % self.current_direction
                 self.fire()
@@ -89,6 +92,18 @@ class MyMainWindow(QMainWindow):
             self.monster_timer.stop()
         if self.bullet_timer.isRunning():            
             self.bullet_timer.stop()
+            
+    def pause(self):
+        if self.paused:
+            self.paused = False
+            self.cheat_map.setEnabled(False)
+            self.cheat_monsters.setEnabled(False)
+            self.cheat_monster_paths.setEnabled(False)
+        else:
+            self.paused = True
+            self.cheat_map.setEnabled(True)
+            self.cheat_monsters.setEnabled(True)
+            self.cheat_monster_paths.setEnabled(True)
                                             
     def gen_map(self):
         self.map_w = self.map_masked.width()
@@ -378,6 +393,8 @@ class MyMainWindow(QMainWindow):
                     self.draw.line((icol+10, irow, icol+10, irow+10), fill=outline, width=1)
         
     def move(self, direction):
+        if self.paused:
+            return
         self.current_direction = direction
         row, column = self.current_location
         next_row = row
@@ -436,6 +453,7 @@ class MyMainWindow(QMainWindow):
         self.collect_rooms()
         self.set_known()
         self.color_cell(50,50)
+        self.pause()
         self.look_around()
         self.redraw_self()
         self.bullet_timer.data = self.data

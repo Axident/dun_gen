@@ -33,21 +33,23 @@ class BulletTimeWorker(QThread):
         self.projectiles = []
         
     def add(self, location, tile_color, direction):
-        bullet = Projectile(location, tile_color, direction)
-        self.projectiles.append(bullet)
+        if not self.parent.paused:
+            bullet = Projectile(location, tile_color, direction)
+            self.projectiles.append(bullet)
         
     def run(self):
         while len(self.projectiles):
             time.sleep(.05)
-            new_projectiles = []
-            for projectile in self.projectiles:
-                projectile.move()
-                r,c = projectile.location
-                cell = self.data[r][c]
-                if cell.color == projectile.tile_color:
-                    new_projectiles.append(projectile)
-            self.projectiles = new_projectiles
-            self.status.emit(self.projectiles)
+            if not self.parent.paused:
+                new_projectiles = []
+                for projectile in self.projectiles:
+                    projectile.move()
+                    r,c = projectile.location
+                    cell = self.data[r][c]
+                    if cell.color == projectile.tile_color:
+                        new_projectiles.append(projectile)
+                self.projectiles = new_projectiles
+                self.status.emit(self.projectiles)
         self.finished.emit(None)
         
     def stop(self):
@@ -297,13 +299,14 @@ class WanderWorker(QThread):
         alive_count = len(self.beasts)
         while len(self.beasts):
             time.sleep(.25)
-            alive_count = 0
-            for beast in self.beasts:
-                if beast.alive:
-                    beast.move(self.parent.current_location)
-                    r,c = beast.location
-                    alive_count+=1
-            self.status.emit(self.beasts)
+            if not self.parent.paused:
+                alive_count = 0
+                for beast in self.beasts:
+                    if beast.alive:
+                        beast.move(self.parent.current_location)
+                        r,c = beast.location
+                        alive_count+=1
+                self.status.emit(self.beasts)
         self.finished.emit(None)
         
     def stop(self):
