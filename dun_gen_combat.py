@@ -1,5 +1,11 @@
-from PySide.QtCore import *
-from PySide.QtGui import *
+try:
+    from PySide.QtCore import *
+    from PySide.QtGui import *
+except:
+    from PySide2.QtCore import *
+    from PySide2.QtGui import *
+    from PySide2.QtWidgets import *
+    
 import time
 import random
 
@@ -272,7 +278,7 @@ class Monster(object):
         if next_item.color == self.color:
             path.append([next_row, next_col])
             if [next_row, next_col] == self.prey_location:
-                print "I SEE YOU!"
+                print("I SEE YOU!")
                 self.hunter_path = path
                 return path
             for d in ['north', 'south', 'east', 'west']:

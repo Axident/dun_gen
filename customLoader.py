@@ -1,5 +1,9 @@
-from PySide.QtUiTools import QUiLoader
-from PySide.QtCore import Slot, QMetaObject
+try:
+    from PySide.QtUiTools import QUiLoader
+    from PySide.QtCore import Slot, QMetaObject
+except:
+    from PySide2.QtUiTools import QUiLoader
+    from PySide2.QtCore import Slot, QMetaObject
 
 class UiLoader(QUiLoader):
     """

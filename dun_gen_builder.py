@@ -1,5 +1,11 @@
-from PySide.QtCore import *
-from PySide.QtGui import *
+try:
+    from PySide.QtCore import *
+    from PySide.QtGui import *
+except:
+    from PySide2.QtCore import *
+    from PySide2.QtGui import *
+    from PySide2.QtWidgets import *
+    
 import os
 import re
 import time
@@ -143,7 +149,7 @@ class MapBuilderWorker(QThread):
         icol = col*10
         self.draw.rectangle((icol+2, irow+2, icol+8, irow+8), fill=(255,0,0), outline='green')
         self.draw.rectangle((icol+4, irow+4, icol+6, irow+6), fill=(255,255,0), outline='blue')
-        print 'setting exit @ (%d, %d)' % (row, col)
+        print('setting exit @ (%d, %d)' % (row, col))
         cells_to_paint = self.create_exit_path(row, col, headed)
         while cells_to_paint is None:
             headed = directions[random.randint(0,3)]
@@ -159,7 +165,7 @@ class MapBuilderWorker(QThread):
             col+=1
         elif headed == "west":
             col-=1
-        print 'door to exit @ (%d,%d)' % (row, col)
+        print('door to exit @ (%d,%d)' % (row, col))
         self.door(row, col, headed, secret=True, auto_skip=False)
         self.finished.emit(self.source_img)
         
@@ -259,7 +265,7 @@ class MapBuilderWorker(QThread):
         last_item = self.data[last_row][last_col]
         last_color = last_item.color
         if cur_color == last_color and auto_skip:
-            print 'skipping unnecessary %s door @ %d,%d' % (direction, row, column)
+            print('skipping unnecessary %s door @ %d,%d' % (direction, row, column))
             return
         irow = row*10
         icol = column*10

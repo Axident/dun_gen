@@ -1,5 +1,11 @@
-from PySide.QtCore import *
-from PySide.QtGui import *
+try:
+    from PySide.QtCore import *
+    from PySide.QtGui import *
+except:
+    from PySide2.QtCore import *
+    from PySide2.QtGui import *
+    from PySide2.QtWidgets import *
+    
 from customLoader import loadUi
 import os
 import re
@@ -59,7 +65,7 @@ class MyMainWindow(QMainWindow):
     def eventFilter(self, object, event):
         if event.type() == QEvent.Type.KeyPress:
             if event.key() == Qt.Key_N:
-                print 'generating new map'
+                print('generating new map')
                 self.gen_map()
                 return True
             if not self.alive:
@@ -179,7 +185,7 @@ class MyMainWindow(QMainWindow):
                 for m in self.monsters:
                     if m.alive:
                         if m.location == p.location:
-                            print "YOU KILLED A MONSTER!"
+                            print("YOU KILLED A MONSTER!")
                             m.alive = False
                             p.active = False
                             self.kills+=1
@@ -194,7 +200,7 @@ class MyMainWindow(QMainWindow):
                 row, column = m.location
                 if m.location == self.current_location:
                     if m.alive:
-                        print "YOU DIED!"
+                        print("YOU DIED!")
                         self.alive = False
                     elif not m.looted:
                         m.looted = True
@@ -408,18 +414,18 @@ class MyMainWindow(QMainWindow):
         elif direction == 'east':
             next_col += 1
         if (next_row,next_col) == self.exit_door:
-            print "YOU EXIT THE DUNGEON!"
+            print("YOU EXIT THE DUNGEON!")
         elif next_row<=0 or next_row>=99 or next_col<=0 or next_col>=99:
-            print "There be dragons! Can't go that way!"
+            print("There be dragons! Can't go that way!")
             return False
         next_item = self.data[next_row][next_col]
         current_item = self.data[row][column]
         if not next_item.space_type:
-            print "Empty space. Can't go that way."
+            print("Empty space. Can't go that way.")
             return False
         if not next_item.color == current_item.color:
             if not getattr(current_item, direction):
-                print "Wall. You need a door."
+                print("Wall. You need a door.")
                 return False
         self.current_location = [next_row, next_col]
         #print next_item
@@ -447,7 +453,7 @@ class MyMainWindow(QMainWindow):
         self.total_kills.setText("%s/%s" % (self.kills, len(self.monsters)))
         
     def save_map(self, image):
-        image.save(r'D:\Dev\Python\dun_gen\test.bmp')
+        image.save(r'%s\test.bmp' % here)
         self.update_image(image)
         self.data = self.map_builder.data
         self.collect_rooms()
@@ -459,7 +465,7 @@ class MyMainWindow(QMainWindow):
         self.bullet_timer.data = self.data
         self.monster_timer.data = self.data
         self.start_monsters()
-        print 'jobs done'
+        print('jobs done')
         
     def update_image(self, image):
         self.map_image = image
