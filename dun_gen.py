@@ -442,11 +442,11 @@ class MyMainWindow(QMainWindow):
         next_item = self.data[next_row][next_col]
         current_item = self.data[row][column]
         if not next_item.space_type:
-            print("Empty space. Can't go that way.")
+            #print("Empty space. Can't go that way.")
             return False
         if not next_item.color == current_item.color:
             if not getattr(current_item, direction):
-                print("Wall. You need a door.")
+                #print("Wall. You need a door.")
                 return False
         self.current_location = [next_row, next_col]
         #print next_item
@@ -493,6 +493,7 @@ class MyMainWindow(QMainWindow):
         self.collect_rooms()
         self.set_known()
         self.color_cell(50,50)
+        self.paused = False
         self.pause()
         self.look_around()
         self.redraw_self()
