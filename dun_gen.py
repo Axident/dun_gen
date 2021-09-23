@@ -471,7 +471,7 @@ class MyMainWindow(QMainWindow):
                     self.exit_door = (r,c)
                     
     def total_points(self):
-        return (len(self.rooms_known)*10) + len(self.halls_known) + 
+        return (len(self.rooms_known)*10) + len(self.halls_known) + \
         (self.kills*100) + (self.exits_found*1000) + self.bonus_points
                     
     def set_known(self):
