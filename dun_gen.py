@@ -59,7 +59,6 @@ class MyMainWindow(QMainWindow):
         self.map_builder.finished.connect(self.save_map)
         self.tabWidget.currentChanged.connect(self.toggle_generate)
         self.go_again.clicked.connect(self.respawn)
-        
         self.doit.clicked.connect(self.gen_map)
                 
         self.map_image = None
@@ -106,10 +105,9 @@ class MyMainWindow(QMainWindow):
             self.bullet_timer.stop()
             
     def respawn(self):
-        if self.extra_lives - self.spent_lives > 0:
-            self.alive = True
-            self.spent_lives+=1
-            self.set_known()
+        self.alive = True
+        self.spent_lives+=1
+        self.set_known()
             
     def pause(self):
         if self.paused:
