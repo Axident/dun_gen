@@ -44,6 +44,11 @@ class MyMainWindow(QMainWindow):
         self.current_visible = []
         self.alive = True
         self.paused = True
+        self.exits_found = 0
+        self.extra_lives = 0
+        self.spent_lives = 0
+        self.deaths = 0
+        self.bonus_points = 0
         
         self.bullet_timer = BulletTimeWorker(self.data, parent=self)
         self.bullet_timer.status.connect(self.update_projectiles)
@@ -53,6 +58,7 @@ class MyMainWindow(QMainWindow):
         self.map_builder.status.connect(self.update_image)
         self.map_builder.finished.connect(self.save_map)
         self.tabWidget.currentChanged.connect(self.toggle_generate)
+        self.go_again.clicked.connect(self.respawn)
         
         self.doit.clicked.connect(self.gen_map)
                 
@@ -99,6 +105,12 @@ class MyMainWindow(QMainWindow):
         if self.bullet_timer.isRunning():            
             self.bullet_timer.stop()
             
+    def respawn(self):
+        if self.extra_lives - self.spent_lives > 0:
+            self.alive = True
+            self.spent_lives+=1
+            self.set_known()
+            
     def pause(self):
         if self.paused:
             self.paused = False
@@ -111,14 +123,17 @@ class MyMainWindow(QMainWindow):
             self.cheat_monsters.setEnabled(True)
             self.cheat_monster_paths.setEnabled(True)
                                             
-    def gen_map(self):
+    def gen_map(self, start_over=True):
         self.map_w = self.map_masked.width()
         self.map_h = self.map_masked.height()
         self.alive = True
         self.current_location = [50,50]
+        if start_over:
+            self.spent_lives = 0
+            self.deaths = 0
+            self.kills = 0
         self.data = []
         self.rooms = {}
-        self.kills = 0
         self.cells_known = []
         self.rooms_known = {}
         self.halls_known = {str([50,50]):'known'}
@@ -200,8 +215,11 @@ class MyMainWindow(QMainWindow):
                 row, column = m.location
                 if m.location == self.current_location:
                     if m.alive:
-                        print("YOU DIED!")
-                        self.alive = False
+                        if self.alive:
+                            print("YOU DIED!")
+                            self.alive = False
+                            self.deaths += 1
+                            self.set_known()
                     elif not m.looted:
                         m.looted = True
                         for cell in m.known:
@@ -414,7 +432,12 @@ class MyMainWindow(QMainWindow):
         elif direction == 'east':
             next_col += 1
         if (next_row,next_col) == self.exit_door:
-            print("YOU EXIT THE DUNGEON!")
+            self.exits_found += 1
+            self.current_location = [next_row, next_col]
+            print("YOU REACH THE NEXT DUNGEON LEVEL!")
+            self.bonus_points = self.total_points()
+            self.gen_map(start_over=False)
+            return()
         elif next_row<=0 or next_row>=99 or next_col<=0 or next_col>=99:
             print("There be dragons! Can't go that way!")
             return False
@@ -447,10 +470,23 @@ class MyMainWindow(QMainWindow):
                 elif cell.space_type == 'exit':
                     self.exit_door = (r,c)
                     
+    def total_points(self):
+        return (len(self.rooms_known)*10) + len(self.halls_known) + 
+        (self.kills*100) + (self.exits_found*1000) + self.bonus_points
+                    
     def set_known(self):
         self.rooms_discovered.setText("%s/%s" % (len(self.rooms_known), len(self.rooms)))
         self.hallway_discovered.setText("%s/%s" % (len(self.halls_known), len(self.halways)))
         self.total_kills.setText("%s/%s" % (self.kills, len(self.monsters)))
+        self.cleared_count.setText(str(self.exits_found))
+        point_total = self.total_points()
+        self.cur_points.setText(str(point_total))
+        self.extra_lives = int(point_total/1000) - self.spent_lives
+        self.cur_lives.setText(str(self.extra_lives))
+        if self.extra_lives:
+            self.go_again.setEnabled(True)
+        else:
+            self.go_again.setEnabled(False)
         
     def save_map(self, image):
         image.save(r'%s\test.bmp' % here)

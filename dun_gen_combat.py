@@ -74,6 +74,7 @@ class Monster(object):
         self.color = (200,200,200)
         self.alive = True
         self.prey_location = [50,50]
+        self.prey_status = 'alive'
         self.hunter_path = None
         self.known = []
         self.looted = False
@@ -92,7 +93,8 @@ class Monster(object):
         self.current_space_type = halls[i].space_type
         return halls[i].location
         
-    def move(self, prey_location):
+    def move(self, prey_location, prey_alive):
+        self.prey_status = prey_alive
         if self.location not in self.known:
             self.known.append(self.location)
         self.prey_location = prey_location
@@ -278,9 +280,10 @@ class Monster(object):
         if next_item.color == self.color:
             path.append([next_row, next_col])
             if [next_row, next_col] == self.prey_location:
-                print("I SEE YOU!")
-                self.hunter_path = path
-                return path
+                if self.prey_status:
+                    print("I SEE YOU!")
+                    self.hunter_path = path
+                    return path
             for d in ['north', 'south', 'east', 'west']:
                 if getattr(next_item, d):
                     return path
@@ -309,7 +312,7 @@ class WanderWorker(QThread):
                 alive_count = 0
                 for beast in self.beasts:
                     if beast.alive:
-                        beast.move(self.parent.current_location)
+                        beast.move(self.parent.current_location, self.parent.alive)
                         r,c = beast.location
                         alive_count+=1
                 self.status.emit(self.beasts)
