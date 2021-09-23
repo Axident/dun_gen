@@ -68,6 +68,7 @@ class Monster(object):
         
         location = self.set_start_location()
         self.location = location
+        self.used_door = False
         self.next_location = location
         self.desired_location = location
         self.current_path = []
@@ -112,8 +113,9 @@ class Monster(object):
                     if value:
                         directions.append(d)
                 # if there's a door, consider using it
-                if directions and random.randint(0,1):
+                if directions and not self.used_door:
                     i = 0
+                    self.used_door = True
                     if len(directions)>1:
                         i = random.randint(0, len(directions)-1)
                     direction = directions[i]
@@ -127,7 +129,10 @@ class Monster(object):
                         next_col += 1
                     self.desired_location = [next_row, next_col]
                     self.current_path = [[next_row, next_col]]
+                else:
+                    self.used_door = False
             else:
+                self.used_door = True
                 self.current_path = self.direct_hunter_path()
             
         cur_row, cur_col = self.location
