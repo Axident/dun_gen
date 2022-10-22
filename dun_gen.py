@@ -137,10 +137,11 @@ class MyMainWindow(QMainWindow):
 
     def toggle_cheat_map(self):
         do_cheat = self.cheat_map.isChecked()
-        for r in range(0, 100):
-            for c in range(0, 100):
-                cell = self.data[r][c]
-                cell.cheat = do_cheat
+        if len(self.data):
+            for r in range(0, 100):
+                for c in range(0, 100):
+                    cell = self.data[r][c]
+                    cell.cheat = do_cheat
         self.map_scene.update()
                                             
     def gen_map(self, start_over=True):
@@ -165,6 +166,9 @@ class MyMainWindow(QMainWindow):
         self.map_builder.straight_hall_chance = 16
         self.map_builder.continue_pool = 20
         self.map_builder.generate()
+        self.map_builder.delay = 0
+        if self.cheat_map.isChecked():
+            self.map_builder.delay = .01
         self.map_builder.start()
 
     def start_monsters(self):

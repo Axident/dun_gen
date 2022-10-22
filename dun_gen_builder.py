@@ -345,11 +345,12 @@ class MapBuilderWorker(QThread):
             return None
         setattr(this_cell, 'space_type', space_type)
         setattr(this_cell, 'color', color)
+        if self.delay:
+            this_cell.cheat = True
+            time.sleep(self.delay)
         this_cell.update()
         #this_cell.update_tooltip()
         self.parent.map_scene.update()
-        if self.delay:
-            time.sleep(self.delay)
         return this_cell
 
     def door(self, row, column, direction, secret=False, other_side=False, auto_skip=True):
