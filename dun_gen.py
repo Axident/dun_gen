@@ -20,15 +20,11 @@ from dun_gen_builder import *
 from dun_gen_combat import *
 
 
-# TODO remove unnecessary tab interface
-
 class MyMainWindow(QMainWindow):
     def __init__(self, parent=None):
         QMainWindow.__init__(self, parent)
         
         loadUi(r"%s\dun_gen.ui" % here, self)
-        self.map_w = 1020
-        self.map_h = 1020
         self.map_scene = QGraphicsScene(self)
         self.map_scene.setSceneRect(10, 10, 1010, 1010)
         self.map_view.setScene(self.map_scene)
@@ -65,14 +61,13 @@ class MyMainWindow(QMainWindow):
         self.map_builder = MapBuilderWorker(parent=self)
         self.map_builder.status.connect(self.update_image)
         self.map_builder.finished.connect(self.save_map)
-        self.tabWidget.currentChanged.connect(self.toggle_generate)
         self.go_again.clicked.connect(self.respawn)
+        self.cheat_map.clicked.connect(self.toggle_cheat_map)
         self.doit.clicked.connect(self.gen_map)
 
         self.map_image = None
         self.known_image = None
-                
-        self.toggle_generate()
+
         self.installEventFilter(self)
         self.map_view.installEventFilter(self)
 
@@ -83,7 +78,9 @@ class MyMainWindow(QMainWindow):
                 if event.angleDelta().y() < 0:
                     factor = 1.0 / factor
                 self.map_view.scale(factor, factor)
-                self.map_view.update()
+                if self.myself:
+                    self.map_view.centerOn(self.myself)
+                #self.map_view.update()
                 return True
         if event.type() == QEvent.Type.KeyPress:
             if event.key() == Qt.Key_N:
@@ -132,17 +129,21 @@ class MyMainWindow(QMainWindow):
             self.doit.setEnabled(False)
             self.cheat_map.setEnabled(False)
             self.cheat_monsters.setEnabled(False)
-            self.cheat_monster_paths.setEnabled(False)
         else:
             self.paused = True
             self.doit.setEnabled(True)
             self.cheat_map.setEnabled(True)
             self.cheat_monsters.setEnabled(True)
-            self.cheat_monster_paths.setEnabled(True)
+
+    def toggle_cheat_map(self):
+        do_cheat = self.cheat_map.isChecked()
+        for r in range(0, 100):
+            for c in range(0, 100):
+                cell = self.data[r][c]
+                cell.cheat = do_cheat
+        self.map_scene.update()
                                             
     def gen_map(self, start_over=True):
-        self.map_w = self.map_masked.width()
-        self.map_h = self.map_masked.height()
         self.alive = True
         self.current_location = [50,50]
         if start_over:
@@ -165,15 +166,7 @@ class MyMainWindow(QMainWindow):
         self.map_builder.continue_pool = 20
         self.map_builder.generate()
         self.map_builder.start()
-        
-    def toggle_generate(self):
-        if self.tabWidget.currentIndex() == 1:
-            self.map_w = self.map_masked.width()
-            self.map_h = self.map_masked.height()
-            self.doit.setEnabled(False)
-        else:
-            self.doit.setEnabled(True)
-            
+
     def start_monsters(self):
         if self.monster_timer.isRunning():         
             self.monster_timer.stop()
@@ -232,7 +225,7 @@ class MyMainWindow(QMainWindow):
         self.map_scene.addItem(self.myself)
         self.myself.setX(column*10+10)
         self.myself.setY(row*10+10)
-        self.map_view.centerOn(self.data[row][column])
+        self.map_view.centerOn(self.myself)
 
         if self.projectiles:
             for p in self.projectiles:
@@ -272,7 +265,6 @@ class MyMainWindow(QMainWindow):
 
         
     def check_for_secrets(self):
-        is_near = False
         cur_row, cur_col = self.current_location
         item = self.data[cur_row][cur_col]
         for d in ['north', 'south', 'east', 'west']:
@@ -507,14 +499,13 @@ class MyMainWindow(QMainWindow):
                 else:
                     p.update()
             self.redraw_self()
-        
+
     def update_monsters(self):
         if not self.paused:
             alive_count = 0
             for beast in self.monsters:
                 if beast.alive:
                     beast.move(self.current_location, self.alive)
-                    r, c = beast.location
                     alive_count += 1
         #print monsters[0]
         self.redraw_self()

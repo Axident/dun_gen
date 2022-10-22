@@ -31,11 +31,12 @@ class Cell(QGraphicsRectItem):
         self.parent = parent
         self.known = False
         self.visible = True
+        self.cheat = False
 
         self.setRect(QRect(0, 0, 10, 10))
         self.setX(self.location[0]*10 + 10)
         self.setY(self.location[1]*10 + 10)
-        self.update_tooltip()
+        #self.update_tooltip()
 
         
     def __str__(self):
@@ -58,17 +59,17 @@ class Cell(QGraphicsRectItem):
         pen.setColor(QColor(*self.outline))
         pen.setWidth(1)
         pen.setJoinStyle(Qt.MiterJoin)
-        if not self.known:
+        if not self.known and not self.cheat:
             pen.setColor(QColor(40, 40, 40))
             painter.setBrush(QColor(0, 0, 0))
         elif self.space_type == 'room':
-            if self.visible:
+            if self.visible or self.cheat:
                 painter.setBrush(QColor(255, 255, 220))
             else:
                 painter.setBrush(QColor(160, 160, 160))
             pen.setColor(QColor(120, 120, 120))
         elif self.space_type == 'hall':
-            if self.visible:
+            if self.visible or self.cheat:
                 painter.setBrush(QColor(220, 220, 200))
             else:
                 painter.setBrush(QColor(120, 120, 120))
@@ -81,8 +82,9 @@ class Cell(QGraphicsRectItem):
         painter.drawRect(0, 0, 10, 10)
         painter.restore()
 
-        if self.ghost or not self.known:
-            return
+        if not self.cheat:
+            if self.ghost or not self.known:
+                return
 
         if self.north or self.south or self.west or self.east:
             painter.save()
@@ -344,7 +346,7 @@ class MapBuilderWorker(QThread):
         setattr(this_cell, 'space_type', space_type)
         setattr(this_cell, 'color', color)
         this_cell.update()
-        this_cell.update_tooltip()
+        #this_cell.update_tooltip()
         self.parent.map_scene.update()
         if self.delay:
             time.sleep(self.delay)
