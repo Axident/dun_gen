@@ -9,12 +9,15 @@ except:
 import time
 import random
 
-class Projectile(object):
+class Projectile(QGraphicsEllipseItem):
     def __init__(self, location, tile_color, direction):
+        super(Projectile, self).__init__(None)
         self.direction = direction
         self.tile_color = tile_color
         self.active = True
         self.location = location
+        self.setX(self.location[1]*10+10)
+        self.setY(self.location[0]*10+10)
         
     def move(self):
         next_row, next_col = self.location
@@ -27,42 +30,43 @@ class Projectile(object):
         elif self.direction == 'east':
             next_col += 1
         self.location = [next_row, next_col]
+        self.setX(self.location[1]*10+10)
+        self.setY(self.location[0]*10+10)
+
+    def paint(self, painter, option, widget):
+        if self.active:
+            painter.save()
+            pen = QPen()
+            pen.setColor(QColor(255, 255, 0))
+            pen.setWidth(2)
+            painter.setPen(pen)
+            painter.setBrush(QBrush(QColor(255, 100, 0)))
+            if self.direction in ['north', 'south']:
+                painter.drawEllipse(QPoint(5, 5), 4, 6)
+            else:
+                painter.drawEllipse(QPoint(5, 5), 6, 4)
+            painter.restore()
 
 class BulletTimeWorker(QThread):
     status = Signal(object)
     finished = Signal(object)
 
-    def __init__(self, data, parent=None):
+    def __init__(self, parent=None):
         QThread.__init__(self, parent)
-        self.data = data
         self.parent = parent
-        self.projectiles = []
-        
-    def add(self, location, tile_color, direction):
-        if not self.parent.paused:
-            bullet = Projectile(location, tile_color, direction)
-            self.projectiles.append(bullet)
-        
+
     def run(self):
-        while len(self.projectiles):
+        while len(self.parent.projectiles):
             time.sleep(.05)
-            if not self.parent.paused:
-                new_projectiles = []
-                for projectile in self.projectiles:
-                    projectile.move()
-                    r,c = projectile.location
-                    cell = self.data[r][c]
-                    if cell.color == projectile.tile_color:
-                        new_projectiles.append(projectile)
-                self.projectiles = new_projectiles
-                self.status.emit(self.projectiles)
+            self.status.emit(None)
         self.finished.emit(None)
         
     def stop(self):
         self.terminate()
 
-class Monster(object):
+class Monster(QGraphicsEllipseItem):
     def __init__(self, data):
+        super(Monster, self).__init__(None)
         self.data = data
         self.direction = None
         
@@ -72,28 +76,60 @@ class Monster(object):
         self.next_location = location
         self.desired_location = location
         self.current_path = []
-        self.color = (200,200,200)
+        self.color = (200, 200, 200)
         self.alive = True
+        self.visible = False
         self.prey_location = [50,50]
         self.prey_status = 'alive'
         self.hunter_path = None
         self.known = []
         self.looted = False
+        self.current_space_type = None
+        self.setX(self.location[1]*10+10)
+        self.setY(self.location[0]*10+10)
         
     def __str__(self):
         return 'beast @ %s direction: %s, headed_to: %s' % (self.location, self.direction, self.desired_location)
+    def paint(self, painter, option, widget):
+        if self.visible:
+            painter.save()
+            pen = QPen()
+            pen.setColor(QColor(0, 200, 0))
+            pen.setWidth(1)
+            painter.setPen(pen)
+            painter.setBrush(QBrush(QColor(0, 100, 200)))
+            painter.drawEllipse(QPoint(5, 5), 4, 4)
+            painter.restore()
+            if self.alive:
+                painter.save()
+                pen.setColor(QColor(0, 0, 0))
+                pen.setWidth(1)
+                painter.setPen(pen)
+                painter.setBrush(QBrush(QColor(255, 255, 50)))
+                painter.drawEllipse(QPoint(3, 4), 1, 1)
+                painter.drawEllipse(QPoint(7, 4), 1, 1)
+                painter.restore()
+            if self.looted:
+                painter.save()
+                pen = QPen()
+                pen.setColor(QColor(60, 0, 60))
+                pen.setWidth(1)
+                painter.setPen(pen)
+                painter.setBrush(QBrush(QColor(0, 0, 80)))
+                painter.drawEllipse(QPoint(5, 5), 4, 4)
+                painter.restore()
         
     def set_start_location(self):
-        halls = []
-        for r in range(0,99):
-            for c in range(0,99):
+        room_cells = []
+        for r in range(0, 99):
+            for c in range(0, 99):
                 cell = self.data[r][c]
-                if cell.space_type == 'hall':
-                    halls.append(cell)
-        i = random.randint(0, len(halls)-1)
-        self.current_space_type = halls[i].space_type
-        return halls[i].location
-        
+                if cell.space_type == 'room':
+                    room_cells.append(cell)
+        i = random.randint(0, len(room_cells)-1)
+        self.current_space_type = room_cells[i].space_type
+        return [room_cells[i].location[1], room_cells[i].location[0]]
+
     def move(self, prey_location, prey_alive):
         self.prey_status = prey_alive
         if self.location not in self.known:
@@ -149,6 +185,8 @@ class Monster(object):
         item = self.data[path_row][path_col]
         self.current_space_type = item.space_type
         self.color = item.color
+        self.setX(self.location[1]*10+10)
+        self.setY(self.location[0]*10+10)
         
     def direct_hunter_path(self):
         start = self.hunter_path[0]
@@ -162,7 +200,7 @@ class Monster(object):
             return self.hunter_path
         elif sc == ec:
             return self.hunter_path
-        new_path = [[sr,sc]]
+        new_path = [[sr, sc]]
         if sr > er and sc > ec:
             #northwest
             while sr > er and sc > ec:
@@ -220,7 +258,7 @@ class Monster(object):
         row, column = self.location
         item = self.data[row][column]
         paths = []
-        for direction in ['north','south','west','east']:
+        for direction in ['north', 'south', 'west', 'east']:
             path = self.look(row, column, direction, path = [[row, column]])
             if self.hunter_path:
                 self.current_path = self.hunter_path
@@ -268,7 +306,7 @@ class Monster(object):
         self.desired_location = self.current_path[-1]
         #print 'chosen path:',self.current_path
             
-    def look(self, row, column, direction, path = []):
+    def look(self, row, column, direction, path=[]):
         next_row = row
         next_col = column
         if 'north' in direction:
@@ -279,10 +317,10 @@ class Monster(object):
             next_col -= 1
         elif 'east' in direction:
             next_col += 1
-        if next_row<=0 or next_row>=99 or next_col<=0 or next_col>=99:
+        if next_row <= 0 or next_row >= 99 or next_col <= 0 or next_col >= 99:
             return path
         next_item = self.data[next_row][next_col]
-        if next_item.color == self.color:
+        if next_item.space_type and next_item.color == self.color:
             path.append([next_row, next_col])
             if [next_row, next_col] == self.prey_location:
                 if self.prey_status:
@@ -301,26 +339,14 @@ class WanderWorker(QThread):
 
     def __init__(self, data, parent=None):
         QThread.__init__(self, parent)
-        self.data = data
         self.parent = parent
-        self.beasts = []
-        
-    def add(self, location=None):
-        monster = Monster(self.data)
-        self.beasts.append(monster)
-        
+        self.data = data
+
     def run(self):
         alive_count = len(self.beasts)
-        while len(self.beasts):
+        while len(self.parent.monsters):
             time.sleep(.25)
-            if not self.parent.paused:
-                alive_count = 0
-                for beast in self.beasts:
-                    if beast.alive:
-                        beast.move(self.parent.current_location, self.parent.alive)
-                        r,c = beast.location
-                        alive_count+=1
-                self.status.emit(self.beasts)
+            self.status.emit(None)
         self.finished.emit(None)
         
     def stop(self):
