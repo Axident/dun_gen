@@ -64,10 +64,28 @@ class BulletTimeWorker(QThread):
     def stop(self):
         self.terminate()
 
+class MonsterAdapter(QObject):
+    def __init__(self, parent, object_to_animate):
+        super(MonsterAdapter, self).__init__()
+        self.object_to_animate = object_to_animate
+        self.parent = parent
+
+    def get_pos(self):
+        return self.object_to_animate.pos
+
+    def set_pos(self, pos):
+        self.object_to_animate.setX(pos.y())
+        self.object_to_animate.setY(pos.x())
+        self.object_to_animate.update()
+        self.parent.parent.map_scene.update()
+
+    location = Property(QPoint, get_pos, set_pos)
+
 class Monster(QGraphicsEllipseItem):
-    def __init__(self, data):
+    def __init__(self, data, parent):
         super(Monster, self).__init__(None)
         self.data = data
+        self.parent = parent
         self.direction = None
         
         location = self.set_start_location()
@@ -87,9 +105,12 @@ class Monster(QGraphicsEllipseItem):
         self.current_space_type = None
         self.setX(self.location[1]*10+10)
         self.setY(self.location[0]*10+10)
+
+        self.adapter = MonsterAdapter(self, self)
         
     def __str__(self):
         return 'beast @ %s direction: %s, headed_to: %s' % (self.location, self.direction, self.desired_location)
+
     def paint(self, painter, option, widget):
         if self.visible:
             painter.save()
@@ -185,8 +206,9 @@ class Monster(QGraphicsEllipseItem):
         item = self.data[path_row][path_col]
         self.current_space_type = item.space_type
         self.color = item.color
-        self.setX(self.location[1]*10+10)
-        self.setY(self.location[0]*10+10)
+        return self.location
+        #self.setX(self.location[1]*10+10)
+        #self.setY(self.location[0]*10+10)
         
     def direct_hunter_path(self):
         start = self.hunter_path[0]

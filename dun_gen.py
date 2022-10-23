@@ -43,6 +43,8 @@ class MyMainWindow(QMainWindow):
         
         self.kills = 0
         self.monsters = []
+        self.monsters_per_map = 10
+        self.monster_animations = []
         self.projectiles = []
         self.current_visible = []
         self.alive = True
@@ -178,10 +180,12 @@ class MyMainWindow(QMainWindow):
             self.map_scene.removeItem(m)
         self.monsters = []
         self.monster_timer.beasts = []
-        for m in range(0, 10):
-            monster = Monster(self.data)
+        self.monster_animations = []
+        for m in range(0, self.monsters_per_map):
+            monster = Monster(self.data, self)
             self.monsters.append(monster)
             self.map_scene.addItem(monster)
+            self.monster_animations.append(QPropertyAnimation(monster.adapter, QByteArray(b"location")))
         if not self.monster_timer.isRunning():            
             self.monster_timer.start()
             
@@ -229,6 +233,7 @@ class MyMainWindow(QMainWindow):
         self.map_scene.addItem(self.myself)
         self.myself.setX(column*10+10)
         self.myself.setY(row*10+10)
+        self.map_view.fitInView(QRectF(0, 0, 250, 250))
         self.map_view.centerOn(self.myself)
 
         if self.projectiles:
@@ -461,7 +466,7 @@ class MyMainWindow(QMainWindow):
             self.go_again.setEnabled(False)
         
     def save_map(self, exit_cell):
-        print(exit_cell)
+        #print(exit_cell)
         self.collect_rooms()
         self.set_known()
         self.color_cell(50, 50, known=True)
@@ -506,13 +511,20 @@ class MyMainWindow(QMainWindow):
 
     def update_monsters(self):
         if not self.paused:
-            alive_count = 0
+            m = 0
             for beast in self.monsters:
                 if beast.alive:
-                    beast.move(self.current_location, self.alive)
-                    alive_count += 1
-        #print monsters[0]
+                    anim = self.monster_animations[m]
+                    anim.setStartValue(QPoint(beast.location[0]*10+10, beast.location[1]*10+10))
+                    end_loc = beast.move(self.current_location, self.alive)
+                    anim.setEndValue(QPoint(end_loc[0]*10+10, end_loc[1]*10+10))
+                    anim.setDuration(200)
+                    anim.start()
+                m += 1
         self.redraw_self()
+
+    def sayit(self, *args):
+        print('sayit',str(args))
         
 def launch_it():
     app = QApplication([])

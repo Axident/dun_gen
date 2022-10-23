@@ -70,7 +70,7 @@ class Cell(QGraphicsRectItem):
             pen.setColor(QColor(120, 120, 120))
         elif self.space_type == 'hall':
             if self.visible or self.cheat:
-                painter.setBrush(QColor(220, 220, 200))
+                painter.setBrush(QColor(210, 210, 190))
             else:
                 painter.setBrush(QColor(120, 120, 120))
         else:
