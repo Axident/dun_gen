@@ -76,6 +76,7 @@ class MyMainWindow(QMainWindow):
         QMainWindow.__init__(self, parent)
         
         loadUi(r"%s\dun_gen.ui" % here, self)
+        self.setWindowIcon(QIcon('%s/dun_gen.png' % here))
         self.map_scene = QGraphicsScene(self)
         self.map_scene.setSceneRect(10, 10, 1010, 1010)
         self.map_view.setScene(self.map_scene)
