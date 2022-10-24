@@ -144,7 +144,7 @@ class Cell(QGraphicsRectItem):
             east = self.parent.data[self.location[1]][self.location[0]+1]
 
         # is north wall?
-        if self.location[1] == 0 or (north and north.color != self.color):
+        if self.location[1] == 0 or (north and north.color != self.color and north.space_type != 'exit'):
             painter.save()
             painter.setPen(QPen(QBrush(QColor(255, 255, 255)), 1))
             painter.drawLine(QPoint(0, 0), QPoint(9, 0))
@@ -152,7 +152,7 @@ class Cell(QGraphicsRectItem):
             painter.drawLine(QPoint(0, 1), QPoint(9, 1))
             painter.restore()
         # is west wall?
-        if self.location[0] == 0 or (west and west.color != self.color):
+        if self.location[0] == 0 or (west and west.color != self.color and west.space_type != 'exit'):
             painter.save()
             painter.setPen(QPen(QBrush(QColor(255, 255, 255)), 1))
             painter.drawLine(QPoint(0, 0), QPoint(0, 10))
@@ -160,7 +160,7 @@ class Cell(QGraphicsRectItem):
             painter.drawLine(QPoint(1, 0), QPoint(1, 10))
             painter.restore()
         # is east wall?
-        if self.location[0] == 99 or (east and east.color != self.color):
+        if self.location[0] == 99 or (east and east.color != self.color and east.space_type != 'exit'):
             painter.save()
             painter.setPen(QPen(QBrush(QColor(255, 255, 255)), 1))
             painter.drawLine(QPoint(9, 0), QPoint(9, 10))
@@ -168,7 +168,7 @@ class Cell(QGraphicsRectItem):
             painter.drawLine(QPoint(10, 0), QPoint(10, 10))
             painter.restore()
         # is south wall?
-        if self.location[1] == 99 or (south and south.color != self.color):
+        if self.location[1] == 99 or (south and south.color != self.color and south.space_type != 'exit'):
             painter.save()
             painter.setPen(QPen(QBrush(QColor(255, 255, 255)), 1))
             painter.drawLine(QPoint(0, 9), QPoint(10, 9))
@@ -178,6 +178,7 @@ class Cell(QGraphicsRectItem):
 
         if self.space_type == 'exit':
             painter.save()
+            painter.setPen(QColor(0, 10, 250))
             painter.setBrush(QColor(250, 10, 250))
             painter.drawRect(1, 1, 7, 7)
             painter.setBrush(QColor(10, 250, 10))
@@ -295,7 +296,7 @@ class MapBuilderWorker(QThread):
         rand_spot = random.randint(0,len(possibilities)-1)   
         erow, ecol = possibilities[rand_spot]
         headed = directions[random.randint(0, 3)]
-        self.color_cell(erow, ecol, (0, 0, 0), 'exit')
+        self.color_cell(erow, ecol, (2, 2, 2), 'exit')
         #print('setting exit @ (%d, %d)' % (erow, ecol))
         cells_to_paint = self.create_exit_path(erow, ecol, headed)
         while cells_to_paint is None:

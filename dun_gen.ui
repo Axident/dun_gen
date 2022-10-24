@@ -18,18 +18,51 @@
   </property>
   <widget class="QWidget" name="centralwidget">
    <layout class="QGridLayout" name="gridLayout_3">
+    <item row="0" column="0" rowspan="8">
+     <widget class="QGraphicsView" name="map_view">
+      <property name="verticalScrollBarPolicy">
+       <enum>Qt::ScrollBarAlwaysOff</enum>
+      </property>
+      <property name="horizontalScrollBarPolicy">
+       <enum>Qt::ScrollBarAlwaysOff</enum>
+      </property>
+      <property name="sceneRect">
+       <rectf>
+        <x>0.000000000000000</x>
+        <y>0.000000000000000</y>
+        <width>1000.000000000000000</width>
+        <height>1000.000000000000000</height>
+       </rectf>
+      </property>
+      <property name="dragMode">
+       <enum>QGraphicsView::ScrollHandDrag</enum>
+      </property>
+     </widget>
+    </item>
     <item row="5" column="1">
-     <spacer name="verticalSpacer">
+     <widget class="QSlider" name="map_size">
+      <property name="minimum">
+       <number>10</number>
+      </property>
+      <property name="maximum">
+       <number>1000</number>
+      </property>
+      <property name="singleStep">
+       <number>10</number>
+      </property>
+      <property name="sliderPosition">
+       <number>250</number>
+      </property>
       <property name="orientation">
        <enum>Qt::Vertical</enum>
       </property>
-      <property name="sizeHint" stdset="0">
-       <size>
-        <width>20</width>
-        <height>691</height>
-       </size>
+      <property name="tickPosition">
+       <enum>QSlider::TicksBelow</enum>
       </property>
-     </spacer>
+      <property name="tickInterval">
+       <number>50</number>
+      </property>
+     </widget>
     </item>
     <item row="8" column="0" colspan="2">
      <widget class="QPushButton" name="doit">
@@ -225,27 +258,6 @@
        </widget>
       </item>
      </layout>
-    </item>
-    <item row="0" column="0" rowspan="8">
-     <widget class="QGraphicsView" name="map_view">
-      <property name="verticalScrollBarPolicy">
-       <enum>Qt::ScrollBarAlwaysOff</enum>
-      </property>
-      <property name="horizontalScrollBarPolicy">
-       <enum>Qt::ScrollBarAlwaysOff</enum>
-      </property>
-      <property name="sceneRect">
-       <rectf>
-        <x>0.000000000000000</x>
-        <y>0.000000000000000</y>
-        <width>1000.000000000000000</width>
-        <height>1000.000000000000000</height>
-       </rectf>
-      </property>
-      <property name="dragMode">
-       <enum>QGraphicsView::ScrollHandDrag</enum>
-      </property>
-     </widget>
     </item>
    </layout>
   </widget>

@@ -20,6 +20,57 @@ from dun_gen_builder import *
 from dun_gen_combat import *
 
 
+class Adventurer(QGraphicsPolygonItem):
+    def __init__(self, parent):
+        super(Adventurer, self).__init__(None)
+        self.parent = parent
+        self.direction = 'north'
+
+        self.s_poly = QPolygonF()
+        self.s_poly.append(QPoint(5, 8))
+        self.s_poly.append(QPoint(2, 2))
+        self.s_poly.append(QPoint(8, 2))
+        self.s_poly.append(QPoint(5, 8))
+
+        self.w_poly = QPolygonF()
+        self.w_poly.append(QPoint(2, 5))
+        self.w_poly.append(QPoint(8, 2))
+        self.w_poly.append(QPoint(8, 8))
+        self.w_poly.append(QPoint(2, 5))
+
+        self.e_poly = QPolygonF()
+        self.e_poly.append(QPoint(8, 5))
+        self.e_poly.append(QPoint(2, 8))
+        self.e_poly.append(QPoint(2, 2))
+        self.e_poly.append(QPoint(8, 5))
+
+        self.n_poly = QPolygonF()
+        self.n_poly.append(QPoint(5, 2))
+        self.n_poly.append(QPoint(8, 8))
+        self.n_poly.append(QPoint(2, 8))
+        self.n_poly.append(QPoint(5, 2))
+
+    def update_polygon(self):
+        if self.direction == 'north':
+            self.setPolygon(self.n_poly)
+        elif self.direction == 'south':
+            self.setPolygon(self.s_poly)
+        elif self.direction == 'east':
+            self.setPolygon(self.e_poly)
+        elif self.direction == 'west':
+            self.setPolygon(self.w_poly)
+
+    def paint(self, painter, option, widget):
+        painter.save()
+        #self.setBrush(QColor(0, 255, 255))
+        path = QPainterPath()
+        path.addPolygon(self.polygon())
+        path.setFillRule(Qt.WindingFill)
+        painter.drawPath(path)
+        painter.fillPath(path, QBrush(QColor(0, 255, 255)))
+        #painter.drawPolygon(self.polygon(), Qt.WindingFill)
+        painter.restore()
+
 class MyMainWindow(QMainWindow):
     def __init__(self, parent=None):
         QMainWindow.__init__(self, parent)
@@ -30,7 +81,7 @@ class MyMainWindow(QMainWindow):
         self.map_view.setScene(self.map_scene)
         self.map_view.setSceneRect(0, 0, 1020, 1020)
         self.current_location = [50, 50]
-        self.current_direction = None
+        self.current_direction = 'north'
         self.data = []
         self.rooms = {}
         self.halways = {}
@@ -54,8 +105,11 @@ class MyMainWindow(QMainWindow):
         self.spent_lives = 0
         self.deaths = 0
         self.bonus_points = 0
-        self.myself = None
-        
+        self.myself = Adventurer(self)
+        self.adapter = MoveAdapter(self, self.myself, center=True)
+        self.anim = QPropertyAnimation(self.adapter, QByteArray(b"location"))
+        self.map_fit = 250
+
         self.bullet_timer = BulletTimeWorker(parent=self)
         self.bullet_timer.status.connect(self.update_projectiles)
         self.monster_timer = WanderWorker(self.data, parent=self)
@@ -66,24 +120,20 @@ class MyMainWindow(QMainWindow):
         self.go_again.clicked.connect(self.respawn)
         self.cheat_map.clicked.connect(self.toggle_cheat_map)
         self.doit.clicked.connect(self.gen_map)
+        self.map_size.valueChanged.connect(self.resize_map)
 
         self.map_image = None
         self.known_image = None
 
         self.installEventFilter(self)
-        self.map_view.installEventFilter(self)
+
+    def resize_map(self, value):
+        self.map_fit = value
+        self.map_view.fitInView(QRectF(0, 0, self.map_fit, self.map_fit))
+        if self.myself:
+            self.map_view.centerOn(self.myself)
 
     def eventFilter(self, widget, event):
-        if widget.objectName() == 'map_view':
-            if event.type() == QEvent.Type.Wheel:
-                factor = 1.15
-                if event.angleDelta().y() < 0:
-                    factor = 1.0 / factor
-                self.map_view.scale(factor, factor)
-                if self.myself:
-                    self.map_view.centerOn(self.myself)
-                #self.map_view.update()
-                return True
         if event.type() == QEvent.Type.KeyPress:
             if event.key() == Qt.Key_N:
                 print('generating new map')
@@ -162,8 +212,6 @@ class MyMainWindow(QMainWindow):
             self.map_scene.removeItem(item)
         if self.map_builder.isRunning():
             self.map_builder.stop()
-        if self.myself:
-            self.map_scene.removeItem(self.myself)
         self.map_builder.continue_chance = 12
         self.map_builder.straight_hall_chance = 16
         self.map_builder.continue_pool = 20
@@ -186,68 +234,27 @@ class MyMainWindow(QMainWindow):
             self.monsters.append(monster)
             self.map_scene.addItem(monster)
             self.monster_animations.append(QPropertyAnimation(monster.adapter, QByteArray(b"location")))
-        if not self.monster_timer.isRunning():            
+        if not self.monster_timer.isRunning():
             self.monster_timer.start()
-            
+
     def fire(self):
         current_row, current_column = self.current_location
         current_cell = self.data[current_row][current_column]
-        bullet = Projectile(self.current_location, current_cell.color, self.current_direction)
+        bullet = Projectile(self.current_location, current_cell.color, self.current_direction, parent=self)
         self.projectiles.append(bullet)
         self.map_scene.addItem(bullet)
         if not self.bullet_timer.isRunning():
             self.bullet_timer.start()
 
-    def make_triangle(self, direction):
-        polygon = QPolygonF()
-        if direction == 'south':
-            polygon.append(QPointF(5, 8))
-            polygon.append(QPointF(2, 2))
-            polygon.append(QPointF(8, 2))
-            polygon.append(QPointF(5, 8))
-        elif direction == 'west':
-            polygon.append(QPointF(2, 5))
-            polygon.append(QPointF(8, 2))
-            polygon.append(QPointF(8, 8))
-            polygon.append(QPointF(2, 5))
-        elif direction == 'east':
-            polygon.append(QPointF(8, 5))
-            polygon.append(QPointF(2, 8))
-            polygon.append(QPointF(2, 2))
-            polygon.append(QPointF(8, 5))
-        else:
-            polygon.append(QPointF(5, 2))
-            polygon.append(QPointF(8, 8))
-            polygon.append(QPointF(2, 8))
-            polygon.append(QPointF(5, 2))
-        return polygon
+    def redraw_self(self, start=None, end=None):
+        if start and end:
+            self.anim.setStartValue(start)
+            self.anim.setEndValue(end)
+            self.anim.setDuration(150)
+            self.anim.start()
 
-    def redraw_self(self):
-        if self.myself:
-            self.map_scene.removeItem(self.myself)
-        self.map_scene.update()
-        row, column = self.current_location
-        self.myself = QGraphicsPolygonItem(self.make_triangle(self.current_direction))
-        self.myself.setBrush(QColor(0, 255, 255))
-        self.myself.setFillRule(Qt.WindingFill)
-        self.map_scene.addItem(self.myself)
-        self.myself.setX(column*10+10)
-        self.myself.setY(row*10+10)
-        self.map_view.fitInView(QRectF(0, 0, 250, 250))
+        self.map_view.fitInView(QRectF(0, 0, self.map_fit, self.map_fit))
         self.map_view.centerOn(self.myself)
-
-        if self.projectiles:
-            for p in self.projectiles:
-                p.update()
-                for m in self.monsters:
-                    if m.alive:
-                        if m.location == p.location:
-                            print("YOU KILLED A MONSTER!")
-                            m.alive = False
-                            p.active = False
-                            self.kills += 1
-                            self.set_known()
-                            p.update()
                 
         if self.monsters:
             for m in self.monsters:
@@ -350,8 +357,14 @@ class MyMainWindow(QMainWindow):
         if (next_row, next_col) != self.exit_door:
             if next_row < 0 or next_row > 99 or next_col < 0 or next_col > 99:
                 return
+        else:
+            if [next_row, next_col] not in self.cells_known:
+                self.cells_known.append([next_row, next_col])
+            self.current_visible += [[next_row, next_col]]
+            item.known = True
+            item.update()
         next_item = self.data[next_row][next_col]
-        if next_item.space_type and (next_item.color == color or next_item.space_type == 'exit'):
+        if next_item.space_type and (next_item.color == color):
             if str(next_item.location) not in self.halls_known:
                 self.halls_known[str(next_item.location)] = 'known'
                 self.color_cell(next_row, next_col, known=True)
@@ -394,6 +407,8 @@ class MyMainWindow(QMainWindow):
         if self.paused:
             return
         self.current_direction = direction
+        self.myself.direction = direction
+        self.myself.update_polygon()
         row, column = self.current_location
         next_row = row
         next_col = column
@@ -425,27 +440,26 @@ class MyMainWindow(QMainWindow):
                 #print("Wall. You need a door.")
                 return False
         self.current_location = [next_row, next_col]
+
         #print next_item
         self.look_around()
-        self.redraw_self()
+        self.redraw_self(start=QPoint(row * 10 + 10, column * 10 + 10),
+                         end=QPoint(next_row * 10 + 10, next_col * 10 + 10))
         
     def collect_rooms(self):
         self.rooms = {}
         self.halways = {}
         for r in range(0, 100):
             for c in range(0, 100):
-                try:
-                    cell = self.data[r][c]
-                    if cell.space_type == 'room':
-                        cells = self.rooms.get(str(cell.color), [])
-                        cells.append([r, c])
-                        self.rooms[str(cell.color)] = cells
-                    elif cell.space_type == 'hall':
-                        self.halways[str(cell.location)] = 'hallway'
-                    elif cell.space_type == 'exit':
-                        self.exit_door = (r, c)
-                except:
-                    print('cannot find cell @ %d,%d' % (r, c))
+                cell = self.data[r][c]
+                if cell.space_type == 'exit':
+                    self.exit_door = (r, c)
+                if cell.space_type in ['room', 'exit']:
+                    cells = self.rooms.get(str(cell.color), [])
+                    cells.append([r, c])
+                    self.rooms[str(cell.color)] = cells
+                elif cell.space_type == 'hall':
+                    self.halways[str(cell.location)] = 'hallway'
                     
     def total_points(self):
         return (len(self.rooms_known)*10) + len(self.halls_known) + \
@@ -471,6 +485,10 @@ class MyMainWindow(QMainWindow):
         self.set_known()
         self.color_cell(50, 50, known=True)
         self.current_location = [50, 50]
+        self.map_scene.addItem(self.myself)
+        self.myself.update_polygon()
+        self.myself.setX(510)
+        self.myself.setY(510)
         self.paused = False
         self.pause()
         self.look_around()
@@ -482,6 +500,7 @@ class MyMainWindow(QMainWindow):
         self.data = data
         for item in self.map_scene.items():
             self.map_scene.removeItem(item)
+        self.monsters = []
         for row in list(range(len(self.data))):
             items = self.data[row]
             for c in list(range(len(items))):
@@ -493,21 +512,40 @@ class MyMainWindow(QMainWindow):
     def update_projectiles(self):
         if not self.paused:
             for projectile in self.projectiles:
-                projectile.move()
-                r, c = projectile.location
-                if r <= 0 or r >= 99 or c <= 0 or c >= 99:
+                row, column = projectile.location
+                next_row, next_col = projectile.move()
+                projectile.location = [next_row, next_col]
+
+                if next_row <= 0 or next_row >= 99 or next_col <= 0 or next_col >= 99:
                     projectile.active = False
                 else:
-                    cell = self.data[r][c]
+                    cell = self.data[next_row][next_col]
                     if cell.color != projectile.tile_color:
                         projectile.active = False
-            for p in self.projectiles:
-                if not p.active:
-                    self.map_scene.removeItem(p)
-                    self.projectiles.remove(p)
-                else:
-                    p.update()
-            self.redraw_self()
+
+                if projectile.active:
+                    for m in self.monsters:
+                        if m.alive:
+                            if m.location == projectile.location:
+                                print("YOU KILLED A MONSTER!")
+                                m.alive = False
+                                projectile.active = False
+                                self.kills += 1
+                                self.set_known()
+                                projectile.update()
+
+                start = QPoint(row * 10 + 10, column * 10 + 10)
+                end = QPoint(next_row * 10 + 10, next_col * 10 + 10)
+                bullet_anim = projectile.animation
+                bullet_anim.setStartValue(start)
+                bullet_anim.setEndValue(end)
+                bullet_anim.setDuration(50)
+                bullet_anim.start()
+
+            for projectile in self.projectiles:
+                if not projectile.active:
+                    self.map_scene.removeItem(projectile)
+                    self.projectiles.remove(projectile)
 
     def update_monsters(self):
         if not self.paused:

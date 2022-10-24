@@ -10,14 +10,18 @@ import time
 import random
 
 class Projectile(QGraphicsEllipseItem):
-    def __init__(self, location, tile_color, direction):
+    def __init__(self, location, tile_color, direction, parent=None):
         super(Projectile, self).__init__(None)
         self.direction = direction
+        self.parent = parent
         self.tile_color = tile_color
         self.active = True
         self.location = location
         self.setX(self.location[1]*10+10)
         self.setY(self.location[0]*10+10)
+
+        self.adapter = MoveAdapter(self.parent, self)
+        self.animation = QPropertyAnimation(self.adapter, QByteArray(b"location"))
         
     def move(self):
         next_row, next_col = self.location
@@ -29,22 +33,22 @@ class Projectile(QGraphicsEllipseItem):
             next_col -= 1
         elif self.direction == 'east':
             next_col += 1
-        self.location = [next_row, next_col]
-        self.setX(self.location[1]*10+10)
-        self.setY(self.location[0]*10+10)
+        return [next_row, next_col]
+        #self.setX(self.location[1]*10+10)
+        #self.setY(self.location[0]*10+10)
 
     def paint(self, painter, option, widget):
         if self.active:
             painter.save()
             pen = QPen()
             pen.setColor(QColor(255, 255, 0))
-            pen.setWidth(2)
+            pen.setWidth(1)
             painter.setPen(pen)
             painter.setBrush(QBrush(QColor(255, 100, 0)))
             if self.direction in ['north', 'south']:
-                painter.drawEllipse(QPoint(5, 5), 4, 6)
+                painter.drawEllipse(QPoint(5, 5), 2, 4)
             else:
-                painter.drawEllipse(QPoint(5, 5), 6, 4)
+                painter.drawEllipse(QPoint(5, 5), 4, 2)
             painter.restore()
 
 class BulletTimeWorker(QThread):
@@ -64,11 +68,12 @@ class BulletTimeWorker(QThread):
     def stop(self):
         self.terminate()
 
-class MonsterAdapter(QObject):
-    def __init__(self, parent, object_to_animate):
-        super(MonsterAdapter, self).__init__()
+class MoveAdapter(QObject):
+    def __init__(self, parent, object_to_animate, center=False):
+        super(MoveAdapter, self).__init__()
         self.object_to_animate = object_to_animate
         self.parent = parent
+        self.center = center
 
     def get_pos(self):
         return self.object_to_animate.pos
@@ -77,7 +82,9 @@ class MonsterAdapter(QObject):
         self.object_to_animate.setX(pos.y())
         self.object_to_animate.setY(pos.x())
         self.object_to_animate.update()
-        self.parent.parent.map_scene.update()
+        if self.center:
+            self.parent.map_view.centerOn(self.object_to_animate)
+        self.parent.map_scene.update()
 
     location = Property(QPoint, get_pos, set_pos)
 
@@ -106,7 +113,7 @@ class Monster(QGraphicsEllipseItem):
         self.setX(self.location[1]*10+10)
         self.setY(self.location[0]*10+10)
 
-        self.adapter = MonsterAdapter(self, self)
+        self.adapter = MoveAdapter(self.parent, self)
         
     def __str__(self):
         return 'beast @ %s direction: %s, headed_to: %s' % (self.location, self.direction, self.desired_location)
