@@ -52,8 +52,7 @@ class Projectile(QGraphicsEllipseItem):
             painter.restore()
 
 class BulletTimeWorker(QThread):
-    status = Signal(object)
-    finished = Signal(object)
+    status = Signal(int)
 
     def __init__(self, parent=None):
         QThread.__init__(self, parent)
@@ -62,8 +61,7 @@ class BulletTimeWorker(QThread):
     def run(self):
         while len(self.parent.projectiles):
             time.sleep(.05)
-            self.status.emit(None)
-        self.finished.emit(None)
+            self.status.emit(1)
         
     def stop(self):
         self.terminate()
@@ -363,8 +361,7 @@ class Monster(QGraphicsEllipseItem):
         return path
 
 class WanderWorker(QThread):
-    status = Signal(object)
-    finished = Signal(object)
+    status = Signal(int)
 
     def __init__(self, data, parent=None):
         QThread.__init__(self, parent)
@@ -375,8 +372,7 @@ class WanderWorker(QThread):
         alive_count = len(self.beasts)
         while len(self.parent.monsters):
             time.sleep(.25)
-            self.status.emit(None)
-        self.finished.emit(None)
+            self.status.emit(1)
         
     def stop(self):
         self.terminate()
