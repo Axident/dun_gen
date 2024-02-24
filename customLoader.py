@@ -2,8 +2,12 @@ try:
     from PySide.QtUiTools import QUiLoader
     from PySide.QtCore import Slot, QMetaObject
 except:
-    from PySide2.QtUiTools import QUiLoader
-    from PySide2.QtCore import Slot, QMetaObject
+    try:
+        from PySide2.QtUiTools import QUiLoader
+        from PySide2.QtCore import Slot, QMetaObject
+    except:
+        from PySide6.QtUiTools import QUiLoader
+        from PySide6.QtCore import Slot, QMetaObject
 
 class UiLoader(QUiLoader):
     """
@@ -95,11 +99,13 @@ def loadUi(uifile, baseinstance=None, customWidgets=None,
     return the newly created instance of the user interface.
     """
 
+    print(f'loading {uifile}')
     loader = UiLoader(baseinstance, customWidgets)
-
+    print('initialized loader')
     if workingDirectory is not None:
         loader.setWorkingDirectory(workingDirectory)
 
     widget = loader.load(uifile)
+    print('loaded ui file')
     QMetaObject.connectSlotsByName(widget)
     return widget

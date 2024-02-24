@@ -1,16 +1,14 @@
-try:
-    from PySide.QtCore import *
-    from PySide.QtGui import *
-except:
-    from PySide2.QtCore import *
-    from PySide2.QtGui import *
-    from PySide2.QtWidgets import *
+
+from PySide6.QtCore import *
+from PySide6.QtGui import *
+from PySide6.QtWidgets import *
     
 import os
 import re
 import time
 import sys
 import random
+
 
 class Cell(QGraphicsRectItem):
 
@@ -38,7 +36,6 @@ class Cell(QGraphicsRectItem):
         self.setY(self.location[1]*10 + 10)
         #self.update_tooltip()
 
-        
     def __str__(self):
         cell = 'cell @ %s type: %s, color: %s' % (self.location, self.space_type, self.color)
         for direction in ['north', 'south', 'east', 'west']:
@@ -184,7 +181,6 @@ class Cell(QGraphicsRectItem):
             painter.setBrush(QColor(10, 250, 10))
             painter.drawRect(3, 3, 3, 3)
             painter.restore()
-
 
 
 class MapBuilderWorker(QThread):
@@ -690,7 +686,7 @@ class MapBuilderWorker(QThread):
             
         cur_item.direction = direction
         self.color_cell(row, column, (200, 200, 200), 'hall')
-        self.parent.map_view.centerOn(cur_item)
+        self.parent.ui.map_view.centerOn(cur_item)
         
         next_row = row
         next_col = column

@@ -1,10 +1,7 @@
-try:
-    from PySide.QtCore import *
-    from PySide.QtGui import *
-except:
-    from PySide2.QtCore import *
-    from PySide2.QtGui import *
-    from PySide2.QtWidgets import *
+
+from PySide6.QtCore import *
+from PySide6.QtGui import *
+from PySide6.QtWidgets import *
     
 import time
 import random
@@ -81,7 +78,7 @@ class MoveAdapter(QObject):
         self.object_to_animate.setY(pos.x())
         self.object_to_animate.update()
         if self.center:
-            self.parent.map_view.centerOn(self.object_to_animate)
+            self.parent.ui.map_view.centerOn(self.object_to_animate)
         self.parent.map_scene.update()
 
     location = Property(QPoint, get_pos, set_pos)
