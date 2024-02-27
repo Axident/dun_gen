@@ -80,7 +80,6 @@ class GameMainWindow(QMainWindow):
         self.show_secrets = False
         self.secret_range = 1
         self.exit_door = ()
-        
         self.kills = 0
         self.monsters = []
         self.monsters_per_map = 10
@@ -95,6 +94,7 @@ class GameMainWindow(QMainWindow):
         self.deaths = 0
         self.bonus_points = 0
 
+        self.square_it = False
         self.map_fit = 250
         self.map_image = None
         self.known_image = None
@@ -109,6 +109,7 @@ class GameMainWindow(QMainWindow):
     def prepare_window(self):
         print('preparing window')
         self.setWindowIcon(QIcon(f'{here}/dun_gen.png'))
+        self.setWindowTitle('Dun-Gen')
 
         self.ui.go_again.clicked.connect(self.respawn)
         self.ui.cheat_map.clicked.connect(self.toggle_cheat_map)
@@ -127,11 +128,14 @@ class GameMainWindow(QMainWindow):
         self.adapter = MoveAdapter(self, self.myself, center=True)
         self.anim = QPropertyAnimation(self.adapter, QByteArray(b"location"))
 
+        # this is the magic that uses the .ui structure in our subclassed window
         self.setCentralWidget(self.ui.takeCentralWidget())
         self.map_scene = QGraphicsScene(self)
+        # ui widgets that were moved from the .ui structure exist in the self.ui namespace
         self.ui.map_view.setScene(self.map_scene)
         self.ui.map_view.setSceneRect(0, 0, 1020, 1020)
         self.installEventFilter(self)
+        self.setGeometry(100, 100, 850, 720)
 
     def resize_map(self, value):
         self.map_fit = float(value)
@@ -166,7 +170,18 @@ class GameMainWindow(QMainWindow):
                 #print('firing %s' % self.current_direction)
                 self.fire()
             return True      
-        return False      
+        return False
+
+    def resizeEvent(self, *args, **kwargs):
+        # the map draws poorly unless square ratio applied
+        width = max(args[0].size().width(), 600)
+        if self.square_it:
+            # avoid infinite resize
+            return True
+        self.square_it = True
+        self.resize(width, width-130)
+        self.square_it = False
+        return True
         
     def closeEvent(self, event):
         if self.map_builder.isRunning():            
@@ -175,6 +190,7 @@ class GameMainWindow(QMainWindow):
             self.monster_timer.stop()
         if self.bullet_timer.isRunning():            
             self.bullet_timer.stop()
+        sys.exit()
 
     def respawn(self):
         self.alive = True
@@ -577,7 +593,7 @@ def launch_it():
     window = GameMainWindow(ui=ui)
     window.prepare_window()
     window.show()
-    sys.exit(app.exec())
+    app.exec()
 
 
 if __name__ == "__main__":

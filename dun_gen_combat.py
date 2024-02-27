@@ -6,6 +6,7 @@ from PySide6.QtWidgets import *
 import time
 import random
 
+
 class Projectile(QGraphicsEllipseItem):
     def __init__(self, location, tile_color, direction, parent=None):
         super(Projectile, self).__init__(None)
@@ -16,6 +17,9 @@ class Projectile(QGraphicsEllipseItem):
         self.location = location
         self.setX(self.location[1]*10+10)
         self.setY(self.location[0]*10+10)
+        self.stretch = [QPoint(5, 5), 1, 3]
+        if self.direction in ['east', 'west']:
+            self.stretch = [QPoint(5, 5), 3, 1]
 
         self.adapter = MoveAdapter(self.parent, self)
         self.animation = QPropertyAnimation(self.adapter, QByteArray(b"location"))
@@ -31,8 +35,6 @@ class Projectile(QGraphicsEllipseItem):
         elif self.direction == 'east':
             next_col += 1
         return [next_row, next_col]
-        #self.setX(self.location[1]*10+10)
-        #self.setY(self.location[0]*10+10)
 
     def paint(self, painter, option, widget):
         if self.active:
@@ -42,11 +44,9 @@ class Projectile(QGraphicsEllipseItem):
             pen.setWidth(1)
             painter.setPen(pen)
             painter.setBrush(QBrush(QColor(255, 100, 0)))
-            if self.direction in ['north', 'south']:
-                painter.drawEllipse(QPoint(5, 5), 2, 4)
-            else:
-                painter.drawEllipse(QPoint(5, 5), 4, 2)
+            painter.drawEllipse(*self.stretch)
             painter.restore()
+
 
 class BulletTimeWorker(QThread):
     status = Signal(int)
@@ -62,6 +62,7 @@ class BulletTimeWorker(QThread):
         
     def stop(self):
         self.terminate()
+
 
 class MoveAdapter(QObject):
     def __init__(self, parent, object_to_animate, center=False):
@@ -82,6 +83,7 @@ class MoveAdapter(QObject):
         self.parent.map_scene.update()
 
     location = Property(QPoint, get_pos, set_pos)
+
 
 class Monster(QGraphicsEllipseItem):
     def __init__(self, data, parent):
@@ -209,8 +211,6 @@ class Monster(QGraphicsEllipseItem):
         self.current_space_type = item.space_type
         self.color = item.color
         return self.location
-        #self.setX(self.location[1]*10+10)
-        #self.setY(self.location[0]*10+10)
         
     def direct_hunter_path(self):
         start = self.hunter_path[0]
